@@ -31,6 +31,9 @@
 .focus-word:nth-child(1) {
     font-size: clamp(4rem, 15vw, 8rem);
     margin-bottom: 20px;
+    max-width: 100%;
+    padding: 0 40px;
+    /* Add padding to prevent edge touching */
 }
 
 .focus-word:nth-child(2) {
@@ -65,29 +68,29 @@
 }
 
 .top-left {
-    top: -10px;
-    left: -10px;
+    top: -20px;
+    left: -20px;
     border-right: none;
     border-bottom: none;
 }
 
 .top-right {
-    top: -10px;
-    right: -10px;
+    top: -20px;
+    right: -20px;
     border-left: none;
     border-bottom: none;
 }
 
 .bottom-left {
-    bottom: -10px;
-    left: -10px;
+    bottom: -20px;
+    left: -20px;
     border-right: none;
     border-top: none;
 }
 
 .bottom-right {
-    bottom: -10px;
-    right: -10px;
+    bottom: -20px;
+    right: -20px;
     border-left: none;
     border-top: none;
 }

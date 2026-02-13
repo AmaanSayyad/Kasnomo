@@ -60,7 +60,7 @@ export const initializeStore = async (): Promise<void> => {
     };
 
 
-    console.log("Binomo store initialized successfully");
+    console.log("Kasnomo store initialized successfully");
   } catch (error) {
     console.error("Error initializing store:", error);
   }

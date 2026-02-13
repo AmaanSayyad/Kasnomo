@@ -53,11 +53,11 @@ export const MiniHistory: React.FC = () => {
                                             <div className="flex flex-col items-end">
                                                 <span className={`text-[10px] font-black font-mono ${bet.won ? 'text-emerald-400' : 'text-rose-400'}`}>
                                                     {bet.won
-                                                        ? `+${parseFloat(bet.payout).toFixed(4)}`
-                                                        : `-${parseFloat(bet.amount).toFixed(4)}`}
+                                                        ? `+${parseFloat(bet.payout).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                                        : `-${parseFloat(bet.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                                                 </span>
                                                 <span className="text-[8px] text-gray-600 uppercase font-black">
-                                                    BNB
+                                                    KAS
                                                 </span>
                                             </div>
                                         </div>

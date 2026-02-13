@@ -38,7 +38,7 @@ export default function Home() {
     if (newCount >= 3) {
       // Activate demo mode
       setAddress('0xDEMO_1234567890');
-      setBalance(50); // 50 BNB is reasonable
+      setBalance(50); // 50 KAS is reasonable
       setIsConnected(true);
       if (accountType === 'real') toggleAccountType();
       setDemoActivated(true);
@@ -65,7 +65,7 @@ export default function Home() {
               className="text-lg sm:text-3xl font-black tracking-tighter sm:tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-white via-purple-400 to-white cursor-pointer select-none"
               style={{ fontFamily: 'var(--font-orbitron)' }}
             >
-              BINOMO
+              KASNOMO
             </span>
             {demoActivated && (
               <span className="text-green-400 text-[10px] font-mono font-normal border border-green-400/50 px-2 py-0.5 rounded bg-green-400/10 animate-pulse">

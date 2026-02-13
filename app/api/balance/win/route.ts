@@ -29,10 +29,10 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Validate BNB (EVM) address
-        if (!ethers.isAddress(userAddress)) {
+        // Validate user address
+        if (!userAddress || userAddress.length < 10) {
             return NextResponse.json(
-                { error: 'Invalid BNB address format' },
+                { error: 'Invalid Kaspa address format' },
                 { status: 400 }
             );
         }

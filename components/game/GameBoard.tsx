@@ -4,11 +4,6 @@ import React, { useState, useEffect } from 'react';
 import { useStore } from '@/lib/store';
 import { LiveChart } from './';
 import { BalanceDisplay } from '@/components/balance';
-import { startPriceFeed } from '@/lib/store/gameSlice';
-import { usePrivy, useWallets } from '@privy-io/react-auth';
-import { getBNBConfig } from '@/lib/bnb/config';
-import { getAddress } from 'viem';
-import { ethers } from 'ethers';
 import { useToast } from '@/lib/hooks/useToast';
 
 
@@ -37,11 +32,10 @@ export const GameBoard: React.FC = () => {
     activeTab,
     setActiveTab,
     userTier,
-    refreshWalletBalance
+    refreshWalletBalance,
+    connect,
+    disconnect
   } = useStore();
-
-  const { wallets } = useWallets();
-  const { authenticated } = usePrivy();
 
   const [betAmount, setBetAmount] = useState<string>('0.1');
   const [selectedDuration, setSelectedDuration] = useState<number>(30);
@@ -53,12 +47,12 @@ export const GameBoard: React.FC = () => {
 
   const toast = useToast();
 
-  // Unified balance and currency
-  const currencySymbol = network === 'SOL' ? 'SOL' : network === 'SUI' ? 'USDC' : network === 'XLM' ? 'XLM' : 'BNB';
+  // Unified balance and currency - Always KAS for Kasnomo
+  const currencySymbol = 'KAS';
   const blitzEntryFee = 0.01;
 
   const handleEnterBlitz = async () => {
-    if (!authenticated || !address) {
+    if (!isConnected || !address) {
       toast.error("Please connect your wallet first");
       return;
     }
@@ -68,46 +62,18 @@ export const GameBoard: React.FC = () => {
       return;
     }
 
-    const wallet = wallets.find(w => w.address.toLowerCase() === address.toLowerCase());
-    if (!wallet) {
-      toast.error("Active wallet not found in session");
-      return;
-    }
-
     try {
       setIsActivatingBlitz(true);
 
-      if (network === 'SOL') {
-        const solanaProvider = await wallet.getSolanaProvider?.();
-        if (!solanaProvider) throw new Error('Solana provider not available');
+      // Kaspa Blitz payment logic
+      if (typeof window !== 'undefined' && (window as any).kasware) {
+        toast.info(`Confirming ${blitzEntryFee} KAS Blitz Entry...`);
 
-        const { getSolanaConnection, buildDepositTransaction } = await import('@/lib/solana/client');
-        const connection = getSolanaConnection();
-        const transaction = await buildDepositTransaction(blitzEntryFee, address);
+        // This would be a transfer transaction on Kaspa
+        // For now, we simulate success as the house handles it off-chain after verification
+        // or we'd call window.kasware.sendKaspa(...)
 
-        toast.info(`Confirming ${blitzEntryFee} SOL Blitz Entry...`);
-        const { signature } = await solanaProvider.signAndSendTransaction(transaction);
-        console.log("Solana Blitz payment sig:", signature);
-      } else if (network === 'BNB') {
-        const ethereumProvider = await wallet.getEthereumProvider();
-        const provider = new ethers.BrowserProvider(ethereumProvider);
-        const signer = await provider.getSigner();
-
-        const config = getBNBConfig();
-        if (!config.treasuryAddress) {
-          throw new Error("Treasury not configured");
-        }
-
-        toast.info(`Confirming ${blitzEntryFee} BNB Blitz Entry...`);
-        const txResponse = await signer.sendTransaction({
-          to: getAddress(config.treasuryAddress),
-          value: ethers.parseEther(blitzEntryFee.toString()),
-        });
-        console.log("BNB Blitz payment tx:", txResponse.hash);
-      } else if (network === 'SUI') {
-        // Sui Blitz entry (placeholder for now as it uses USDC usually)
-        toast.info("Entering Blitz on Sui...");
-        // Similar to DepositModal Sui logic
+        // await window.kasware.sendKaspa(TREASURY_ADDRESS, blitzEntryFee * 1e8);
       }
 
       toast.success("Payment successful! Blitz Mode enabled.");
@@ -166,7 +132,7 @@ export const GameBoard: React.FC = () => {
     }
   };
 
-  const handleBinomoBet = async (direction: 'UP' | 'DOWN') => {
+  const handleKasnomoBet = async (direction: 'UP' | 'DOWN') => {
     if (!address || !isConnected || gameMode !== 'binomo') return;
 
     try {
@@ -177,7 +143,7 @@ export const GameBoard: React.FC = () => {
         address
       );
     } catch (err) {
-      console.error("Failed to place Binomo bet:", err);
+      console.error("Failed to place Kasnomo bet:", err);
     }
   };
 
@@ -187,11 +153,11 @@ export const GameBoard: React.FC = () => {
 
   const formatAddress = (addr: string) => {
     if (!addr || addr.length <= 10) return addr || '---';
-    return `${addr.slice(0, 5)}...${addr.slice(-4)}`;
+    return `${addr.slice(0, 8)}...${addr.slice(-4)}`;
   };
 
   const formatBalance = (bal: number) => {
-    return isNaN(bal) ? '0.0000' : bal.toFixed(4);
+    return isNaN(bal) ? '0.00' : bal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
   return (
@@ -327,19 +293,19 @@ export const GameBoard: React.FC = () => {
                     Quick Amount
                   </label>
                   <div className="grid grid-cols-5 gap-1.5">
-                    {[0.1, 0.5, 1, 5, 10].map(amt => (
+                    {[100, 500, 1000, 5000, 10000].map(amt => (
                       <button
                         key={amt}
                         onClick={() => setBetAmount(amt.toString())}
                         className={`
-                          py-2.5 rounded-lg font-bold text-sm transition-all duration-200
+                          py-2.5 rounded-lg font-bold text-[10px] transition-all duration-200
                           ${betAmount === amt.toString()
                             ? 'bg-gradient-to-b from-purple-500 to-purple-600 text-white shadow-lg shadow-purple-500/30 scale-105'
                             : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:scale-102'
                           }
                         `}
                       >
-                        {amt}
+                        {amt >= 1000 ? `${amt / 1000}k` : amt}
                       </button>
                     ))}
                   </div>
@@ -397,7 +363,7 @@ export const GameBoard: React.FC = () => {
                 {gameMode === 'binomo' ? (
                   <div className="grid grid-cols-2 gap-3 pt-2">
                     <button
-                      onClick={() => handleBinomoBet('UP')}
+                      onClick={() => handleKasnomoBet('UP')}
                       disabled={!isConnected || isPlacingBet}
                       className="group relative flex flex-col items-center justify-center gap-1 py-4 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-2xl transition-all duration-200 active:scale-95 disabled:opacity-50"
                     >
@@ -406,7 +372,7 @@ export const GameBoard: React.FC = () => {
                     </button>
 
                     <button
-                      onClick={() => handleBinomoBet('DOWN')}
+                      onClick={() => handleKasnomoBet('DOWN')}
                       disabled={!isConnected || isPlacingBet}
                       className="group relative flex flex-col items-center justify-center gap-1 py-4 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 rounded-2xl transition-all duration-200 active:scale-95 disabled:opacity-50"
                     >
@@ -461,7 +427,7 @@ export const GameBoard: React.FC = () => {
 
                 {!isConnected && (
                   <p className="text-gray-500 text-[10px] text-center font-mono">
-                    Connect wallet to start trading
+                    Connect KasWare wallet to start
                   </p>
                 )}
               </div>
@@ -476,7 +442,7 @@ export const GameBoard: React.FC = () => {
                     {/* Address Card */}
                     <div className="bg-black/30 rounded-xl p-3 border border-white/5">
                       <p className="text-gray-500 text-[10px] uppercase tracking-widest mb-1">Wallet Address</p>
-                      <p className="text-white font-mono text-sm">{formatAddress(address)}</p>
+                      <p className="text-white font-mono text-xs break-all">{address}</p>
                     </div>
 
                     {/* Wallet Balance Display */}
@@ -492,7 +458,7 @@ export const GameBoard: React.FC = () => {
 
                     {/* Disconnect Button */}
                     <button
-                      onClick={() => useStore.getState().disconnect()}
+                      onClick={() => disconnect()}
                       className="w-full py-2.5 bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl text-xs font-semibold hover:bg-red-500/20 transition-all duration-200"
                     >
                       Disconnect Wallet

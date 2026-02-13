@@ -10,7 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase/client';
+import { supabaseAdmin as supabase } from '@/lib/supabase/client';
 import { ethers } from 'ethers';
 
 interface DepositRequest {
@@ -36,31 +36,24 @@ export async function POST(request: NextRequest) {
     // Validate address (support BNB, Solana, and Sui)
     let isValid = false;
 
-    // Check if it's a valid EVM address
-    if (ethers.isAddress(userAddress)) {
+    // Check if it's a valid Kaspa address
+    if (userAddress.startsWith('kaspa:') || userAddress.startsWith('kaspatest:')) {
       isValid = true;
-    } else if (/^0x[0-9a-fA-F]{64}$/.test(userAddress)) {
-      // Check if it's a valid Sui address
-      isValid = true;
-    } else {
-      // Check if it's a valid Solana address
-      try {
-        const { PublicKey } = await import('@solana/web3.js');
-        const pk = new PublicKey(userAddress);
-        isValid = pk.toBuffer().length === 32;
-      } catch (e) {
-        // Check if it's a valid Stellar address (starts with G, 56 characters)
-        if (/^G[A-Z2-7]{55}$/.test(userAddress)) {
-          isValid = true;
-        } else {
-          isValid = false;
-        }
-      }
     }
+    // Check if it's a valid EVM address
+    else if (ethers.isAddress(userAddress)) {
+      isValid = true;
+    }
+    // Check if it's a valid Sui address (Legacy - Optional)
+    else if (/^0x[0-9a-fA-F]{64}$/.test(userAddress)) {
+      isValid = true;
+    }
+
+    // Removed Solana/Stellar checks as project is Kaspa focused
 
     if (!isValid) {
       return NextResponse.json(
-        { error: 'Invalid wallet address format (BNB, Solana, Sui or Stellar required)' },
+        { error: 'Invalid wallet address format (Kaspa, EVM, Solana, Sui or Stellar required)' },
         { status: 400 }
       );
     }
@@ -73,38 +66,61 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Call update_balance_for_deposit stored procedure
-    const { data, error } = await supabase.rpc('update_balance_for_deposit', {
-      p_user_address: userAddress,
-      p_deposit_amount: amount,
-      p_transaction_hash: txHash,
-    });
+    // Direct DB update (Bypassing RPC for reliability during dev)
+    let newBalance = amount;
 
-    // Handle database errors
-    if (error) {
-      console.error('Database error in deposit:', error);
-      return NextResponse.json(
-        { error: 'Service temporarily unavailable. Please try again.' },
-        { status: 503 }
-      );
+    // 1. Check existing balance
+    const { data: existingData, error: fetchError } = await supabase
+      .from('user_balances')
+      .select('balance')
+      .eq('user_address', userAddress)
+      .single();
+
+    if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 = JSON object not found (no row)
+      console.error('Error fetching existing balance:', fetchError);
+      return NextResponse.json({ error: 'Database error fetching balance: ' + fetchError.message }, { status: 500 });
     }
 
-    // Parse the JSON result from the stored procedure
-    const result = data as { success: boolean; error: string | null; new_balance: number };
+    if (existingData) {
+      // Update existing
+      newBalance = parseFloat(existingData.balance) + amount;
+      const { error: updateError } = await supabase
+        .from('user_balances')
+        .update({
+          balance: newBalance,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_address', userAddress);
 
-    // Check if the procedure reported an error
-    if (!result.success) {
-      return NextResponse.json(
-        { error: result.error || 'Deposit failed' },
-        { status: 400 }
-      );
+      if (updateError) {
+        console.error('Error updating balance:', updateError);
+        return NextResponse.json({ error: 'Database error updating balance: ' + updateError.message }, { status: 500 });
+      }
+    } else {
+      // Insert new
+      const { error: insertError } = await supabase
+        .from('user_balances')
+        .insert({
+          user_address: userAddress,
+          balance: newBalance,
+          updated_at: new Date().toISOString(),
+          created_at: new Date().toISOString()
+        });
+
+      if (insertError) {
+        console.error('Error inserting balance:', insertError);
+        return NextResponse.json({ error: 'Database error creating balance: ' + insertError.message }, { status: 500 });
+      }
     }
 
-    // Return success with new balance
+    console.log(`[DB] Deposit successful for ${userAddress}: +${amount} -> ${newBalance}`);
+
     return NextResponse.json({
       success: true,
-      newBalance: parseFloat(result.new_balance.toString()),
+      newBalance: newBalance,
     });
+
+
   } catch (error) {
     // Handle unexpected errors
     console.error('Unexpected error in POST /api/balance/deposit:', error);

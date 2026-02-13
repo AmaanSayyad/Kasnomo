@@ -14,8 +14,8 @@ export interface WalletState {
   walletBalance: number;
   isConnected: boolean;
   isConnecting: boolean;
-  network: 'BNB' | 'SOL' | 'SUI' | 'XLM' | null;
-  preferredNetwork: 'BNB' | 'SOL' | 'SUI' | 'XLM' | null;
+  network: 'KAS' | null;
+  preferredNetwork: 'KAS' | null;
   error: string | null;
   isConnectModalOpen: boolean;
 
@@ -29,13 +29,13 @@ export interface WalletState {
   // Setters for wallet integration
   setAddress: (address: string | null) => void;
   setIsConnected: (connected: boolean) => void;
-  setNetwork: (network: 'BNB' | 'SOL' | 'SUI' | 'XLM' | null) => void;
-  setPreferredNetwork: (network: 'BNB' | 'SOL' | 'SUI' | 'XLM' | null) => void;
+  setNetwork: (network: 'KAS' | null) => void;
+  setPreferredNetwork: (network: 'KAS' | null) => void;
 }
 
 /**
  * Create wallet slice for Zustand store
- * Handles wallet state management for multi-chain integration
+ * Handles wallet state management for Kaspa integration
  */
 export const createWalletSlice: StateCreator<WalletState> = (set, get) => ({
   // Initial state
@@ -44,13 +44,12 @@ export const createWalletSlice: StateCreator<WalletState> = (set, get) => ({
   isConnected: false,
   isConnecting: false,
   network: null,
-  preferredNetwork: typeof window !== 'undefined' ? localStorage.getItem('solnomo_preferred_network') as 'BNB' | 'SOL' | 'SUI' | 'XLM' | null : null,
+  preferredNetwork: typeof window !== 'undefined' ? localStorage.getItem('kasnomo_preferred_network') as 'KAS' | null : null,
   error: null,
   isConnectModalOpen: false,
 
   /**
    * Connect wallet
-   * Note: Actual connection is handled by Privy integration
    */
   connect: async () => {
     set({ isConnectModalOpen: true });
@@ -58,11 +57,8 @@ export const createWalletSlice: StateCreator<WalletState> = (set, get) => ({
 
   /**
    * Disconnect wallet
-   * Note: Actual disconnection is handled by Privy integration
    */
   disconnect: () => {
-    console.log('Disconnect called - handled by Privy');
-
     // Reset state
     set({
       address: null,
@@ -75,35 +71,50 @@ export const createWalletSlice: StateCreator<WalletState> = (set, get) => ({
   },
 
   /**
-   * Refresh token balance for connected wallet
+   * Refresh balance for connected Kaspa wallet
    */
   refreshWalletBalance: async () => {
-    const { address, isConnected, network } = get();
+    // const { address, isConnected, network } = get(); // Removing this check for now to debugging why it fails even when connected
+    // Re-enabling checks but being less strict about 'network' if it's not set yet
+    const { isConnected } = get();
 
-    if (!isConnected || !address || !network) {
+    if (!isConnected) {
       return;
     }
 
     try {
-      if (network === 'BNB') {
-        const { getBNBBalance } = await import('@/lib/bnb/client');
-        const bal = await getBNBBalance(address);
-        set({ walletBalance: bal });
-      } else if (network === 'SOL') {
-        const { getSOLBalance } = await import('@/lib/solana/client');
-        const bal = await getSOLBalance(address);
-        set({ walletBalance: bal });
-      } else if (network === 'SUI') {
-        const { getUSDCBalance } = await import('@/lib/sui/client');
-        const bal = await getUSDCBalance(address);
-        set({ walletBalance: bal });
-      } else if (network === 'XLM') {
-        const { getXLMBalance } = await import('@/lib/stellar/client');
-        const bal = await getXLMBalance(address);
-        set({ walletBalance: bal });
+      // In Kaspa Testnet, we'll use KasWare API
+      if (typeof window !== 'undefined' && (window as any).kasware) {
+        const balanceObj = await (window as any).kasware.getBalance();
+
+        // console.log("KasWare Balance Obj:", balanceObj); 
+
+        if (balanceObj) {
+          let total = 0;
+
+          const parseVal = (val: any) => {
+            if (typeof val === 'number') return val;
+            if (typeof val === 'string') return parseFloat(val);
+            return 0;
+          };
+
+          if (balanceObj.total !== undefined) {
+            total = parseVal(balanceObj.total);
+          } else if (typeof balanceObj === 'number' || typeof balanceObj === 'string') {
+            total = parseVal(balanceObj);
+          } else if (balanceObj.balance !== undefined) {
+            total = parseVal(balanceObj.balance);
+          } else if (balanceObj.confirmed !== undefined) {
+            total = parseVal(balanceObj.confirmed) + parseVal(balanceObj.unconfirmed);
+          }
+
+          const totalKAS = total / 100000000; // SOMPI to KAS
+          set({ walletBalance: totalKAS });
+        }
       }
     } catch (error) {
-      console.error("Error refreshing wallet balance:", error);
+      // Log the error message if available, otherwise the object
+      console.error("Error refreshing KAS balance:", error instanceof Error ? error.message : JSON.stringify(error));
     }
   },
 
@@ -122,36 +133,36 @@ export const createWalletSlice: StateCreator<WalletState> = (set, get) => ({
   },
 
   /**
-   * Set address (used by wallet integration)
+   * Set address
    */
   setAddress: (address: string | null) => {
     set({ address });
   },
 
   /**
-   * Set connected status (used by wallet integration)
+   * Set connected status
    */
   setIsConnected: (connected: boolean) => {
     set({ isConnected: connected });
   },
 
   /**
-   * Set active network (BNB, SOL, SUI or XLM)
+   * Set active network
    */
-  setNetwork: (network: 'BNB' | 'SOL' | 'SUI' | 'XLM' | null) => {
+  setNetwork: (network: 'KAS' | null) => {
     set({ network });
   },
 
   /**
-   * Set preferred network (manually chosen by user)
+   * Set preferred network
    */
-  setPreferredNetwork: (network: 'BNB' | 'SOL' | 'SUI' | 'XLM' | null) => {
+  setPreferredNetwork: (network: 'KAS' | null) => {
     set({ preferredNetwork: network });
     if (typeof window !== 'undefined') {
       if (network) {
-        localStorage.setItem('solnomo_preferred_network', network);
+        localStorage.setItem('kasnomo_preferred_network', network);
       } else {
-        localStorage.removeItem('solnomo_preferred_network');
+        localStorage.removeItem('kasnomo_preferred_network');
       }
     }
   }

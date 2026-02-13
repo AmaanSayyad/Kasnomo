@@ -120,7 +120,7 @@ const DEFAULT_TARGET_CELLS: TargetCell[] = [
 export const createGameSlice: StateCreator<any> = (set, get) => ({
   // Initial state
   gameMode: 'binomo', // Default to binomo mode
-  selectedAsset: 'BNB',
+  selectedAsset: 'BTC',
   currentPrice: 0,
   priceHistory: [],
   assetPrices: {},
@@ -145,13 +145,13 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
   blitzEndTime: null,
   nextBlitzTime: (() => {
     if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('binomo_blitz_next');
+      const stored = localStorage.getItem('kasnomo_blitz_next');
       if (stored) {
         const t = parseInt(stored, 10);
         if (t > Date.now()) return t;
       }
       const next = Date.now() + 2 * 60 * 1000;
-      localStorage.setItem('binomo_blitz_next', next.toString());
+      localStorage.setItem('kasnomo_blitz_next', next.toString());
       return next;
     }
     return Date.now() + 2 * 60 * 1000;
@@ -245,21 +245,21 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
 
   /**
    * Place a bet on a target cell
-   * Note: After Sui migration, this method is deprecated.
+   * Note: After Kaspa migration, this method is deprecated.
    * Use placeBetFromHouseBalance instead for off-chain betting.
-   * @param amount - Bet amount in USDC tokens (e.g., "1.0")
+   * @param amount - Bet amount
    * @param targetId - ID of the target cell (1-8) OR dynamic grid target (e.g., "UP-2.50")
    */
   placeBet: async (amount: string, targetId: string) => {
-    throw new Error("placeBet is deprecated after BNB migration. Use placeBetFromHouseBalance instead.");
+    throw new Error("placeBet is deprecated after Kasnomo migration. Use placeBetFromHouseBalance instead.");
   },
 
   /**
    * Place a bet using house balance (no wallet signature required)
    * Instant-resolution system: bet is placed on a specific cell, resolves when chart hits it
-   * @param amount - Bet amount in BNB tokens
-   * @param targetId - Dynamic grid target (e.g., "UP-2.50") containing direction and multiplier
-   * @param userAddress - User's wallet address
+   * @param amount - Bet amount in KAS
+   * @param targetId - Dynamic grid target (e.g., "UP-1.9-30") containing direction and multiplier
+   * @param userAddress - User's Kaspa wallet address
    * @param cellId - Optional: The specific cell ID this bet is placed on
    */
   placeBetFromHouseBalance: async (amount: string, targetId: string, userAddress: string, cellId?: string) => {
@@ -272,8 +272,8 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
         throw new Error("Invalid bet amount");
       }
 
-      // Ensure address starts with 0x
-      const formattedAddress = userAddress.startsWith('0x') ? userAddress : `0x${userAddress}`;
+      // Kaspa addresses don't use 0x prefix necessarily
+      const formattedAddress = userAddress;
 
       let target: TargetCell;
       let direction: 'UP' | 'DOWN' = 'UP';
@@ -430,12 +430,12 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
 
   /**
    * Settle an active round
-   * Note: After Sui migration, settlement is handled automatically by the instant-resolution system.
+   * Note: After migration, settlement is handled automatically by the instant-resolution system.
    * This method is kept for backward compatibility but does nothing.
    * @param betId - The unique bet ID to settle
    */
   settleRound: async (betId: string) => {
-    console.log('settleRound called but is deprecated after BNB migration');
+    console.log('settleRound called but is deprecated after migration');
     set({ isSettling: false });
   },
 
@@ -527,7 +527,7 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
 
     activeBets.forEach((bet: ActiveBet) => {
       // Resolve bet if: mode is binomo, asset matches, status is active, and time has passed
-      const betAsset = bet.asset || 'BNB'; // Fallback
+      const betAsset = bet.asset || 'KAS'; // Fallback
 
       if (
         bet.mode === 'binomo' &&
@@ -594,7 +594,7 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
 
   /**
    * Load target cells from configuration
-   * Note: After Sui migration, target cells are configured off-chain.
+   * Note: After migration, target cells are configured off-chain.
    * No blockchain query needed.
    */
   loadTargetCells: async () => {
@@ -661,7 +661,7 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
           body: JSON.stringify({
             id: resolvedBet.id,
             walletAddress: address,
-            asset: resolvedBet.asset || 'BNB',
+            asset: resolvedBet.asset || 'KAS',
             direction: resolvedBet.direction,
             amount: resolvedBet.amount,
             multiplier: resolvedBet.multiplier,
@@ -670,7 +670,7 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
             payout: payout,
             won: won,
             mode: resolvedBet.mode,
-            network: network || 'BNB',
+            network: network || 'KASPA_TESTNET',
           })
         }).catch(err => console.error('Failed to save bet to Supabase:', err));
       }
@@ -713,7 +713,7 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
       if (blitzEndTime && now >= blitzEndTime) {
         const newNextTime = now + BLITZ_INTERVAL;
         if (typeof window !== 'undefined') {
-          localStorage.setItem('binomo_blitz_next', newNextTime.toString());
+          localStorage.setItem('kasnomo_blitz_next', newNextTime.toString());
         }
         set({
           isBlitzActive: false,
@@ -726,7 +726,7 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
       if (now >= nextBlitzTime) {
         const newNextTime = now + BLITZ_INTERVAL + BLITZ_DURATION;
         if (typeof window !== 'undefined') {
-          localStorage.setItem('binomo_blitz_next', newNextTime.toString());
+          localStorage.setItem('kasnomo_blitz_next', newNextTime.toString());
         }
         set({
           isBlitzActive: true,
@@ -741,74 +741,25 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
    * Start global multi-asset price feed tracking
    */
   startGlobalPriceFeed: (updateAllPrices: (prices: Record<string, number>) => void) => {
-    return startGlobalPriceFeed(updateAllPrices);
-  }
-});
+    let stopFeedFn: (() => void) | null = null;
+    let isActive = true;
 
-
-
-/**
- * Start global multi-asset price feed tracking
- */
-export const startGlobalPriceFeed = (
-  updateAllPrices: (prices: Record<string, number>) => void
-): (() => void) => {
-  let stopFeedFn: (() => void) | null = null;
-  let isActive = true;
-
-  import('@/lib/utils/priceFeed').then(({ startMultiPythPriceFeed }) => {
-    if (!isActive) return;
-    stopFeedFn = startMultiPythPriceFeed((prices) => {
-      if (isActive) {
-        updateAllPrices(prices);
-      }
+    // Dynamically import to avoid circular dependencies if any
+    import('@/lib/utils/priceFeed').then(({ startMultiPythPriceFeed }) => {
+      if (!isActive) return;
+      stopFeedFn = startMultiPythPriceFeed((prices) => {
+        if (isActive) {
+          updateAllPrices(prices);
+        }
+      });
+    }).catch(err => {
+      console.error('Failed to start multi-asset price feed:', err);
     });
-  }).catch(err => {
-    console.error('Failed to start multi-asset price feed:', err);
-  });
 
-  return () => {
-    isActive = false;
-    if (stopFeedFn) stopFeedFn();
-  };
-};
-
-/**
- * Start price feed polling (Legacy/Single Asset)
- * @param updatePrice - Function to update price in store
- * @param asset - Asset to track
- * @returns Function to stop polling
- */
-export const startPriceFeed = (
-  updatePrice: (price: number, asset?: AssetType) => void,
-  asset: AssetType = 'BTC'
-): (() => void) => {
-  // Clean up any existing single-asset feed first
-  if ((window as any).__currentPriceFeed) {
-    (window as any).__currentPriceFeed.stop();
-  }
-
-  let stopFeedFn: (() => void) | null = null;
-  let isActive = true;
-
-  (window as any).__currentPriceFeed = {
-    asset,
-    stop: () => {
+    return () => {
       isActive = false;
       if (stopFeedFn) stopFeedFn();
-    }
-  };
-
-  import('@/lib/utils/priceFeed').then(({ startPythPriceFeed }) => {
-    if (!isActive) return;
-    stopFeedFn = startPythPriceFeed((price) => {
-      if (isActive) updatePrice(price, asset);
-    }, asset);
-  });
-
-  return () => {
-    isActive = false;
-    if (stopFeedFn) stopFeedFn();
-  };
-};
+    };
+  }
+});
 

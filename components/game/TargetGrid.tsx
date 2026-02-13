@@ -65,7 +65,7 @@ export const TargetGrid: React.FC<TargetGridProps> = ({
                 {isSelected && betAmount && parseFloat(betAmount) > 0 && (
                     <div className="mt-2 pt-2 border-t border-white/10 text-center w-full">
                         <p className="text-neon-blue text-[10px] font-bold font-mono truncate">
-                            WIN: {payout}
+                            WIN: {payout} KAS
                         </p>
                     </div>
                 )}

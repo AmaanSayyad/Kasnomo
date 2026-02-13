@@ -21,7 +21,7 @@ import { useToast } from '@/lib/hooks/useToast';
  * - Refresh button to fetch latest balance
  * - Deposit and Withdraw buttons with modals
  * - Show loading state while fetching
- * - Format balance to 4 decimal places
+ * - Format balance to 2 decimal places
  */
 export const BalanceDisplay: React.FC = () => {
   const houseBalance = useOverflowStore(state => state.houseBalance);
@@ -111,7 +111,7 @@ export const BalanceDisplay: React.FC = () => {
   return (
     <>
       <div className="bg-black/30 rounded-xl border border-white/5 overflow-hidden">
-        {/* Secret Demo Header - Only visible when activated via BINOMO logo click */}
+        {/* Secret Demo Header - Only visible when activated via KASNOMO logo click */}
         {accountType === 'demo' && (
           <div className="flex bg-yellow-500/10 p-1 border-b border-yellow-500/20 items-center justify-between px-3">
             <span className="text-[9px] font-black text-yellow-500 uppercase tracking-widest">
@@ -177,8 +177,8 @@ export const BalanceDisplay: React.FC = () => {
               <div className="flex items-center gap-1.5">
                 <div className="flex items-center gap-1">
                   <img
-                    src={network === 'SUI' ? '/logos/sui-logo.png' : network === 'SOL' ? '/logos/solana-sol-logo.png' : network === 'XLM' ? '/logos/stellar-xlm-logo.png' : '/logos/bnb-bnb-logo.png'}
-                    alt={network || 'Network'}
+                    src="/logos/kaspa-logo.png"
+                    alt="Kaspa"
                     className="w-4 h-4 object-contain"
                   />
                   <p className={`text-xl font-bold font-mono ${accountType === 'demo' ? 'text-yellow-400' : 'text-purple-400'}`}>
@@ -186,7 +186,7 @@ export const BalanceDisplay: React.FC = () => {
                   </p>
                 </div>
                 <span className={`text-sm font-mono ${accountType === 'demo' ? 'text-yellow-400/70' : 'text-purple-400/70'}`}>
-                  {network === 'SUI' ? 'USDC' : network === 'SOL' ? 'SOL' : network === 'XLM' ? 'XLM' : 'BNB'}
+                  KAS
                 </span>
               </div>
             )}

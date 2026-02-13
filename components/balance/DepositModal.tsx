@@ -1,20 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { usePrivy, useWallets } from '@privy-io/react-auth';
-import { ethers } from 'ethers';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { useOverflowStore } from '@/lib/store';
 import { useToast } from '@/lib/hooks/useToast';
-import { getBNBConfig } from '@/lib/bnb/config';
-import { getAddress } from 'viem';
-import { Connection, PublicKey } from '@solana/web3.js';
-import { getSuiConfig } from '@/lib/sui/config';
-import { buildDepositTransaction as buildSuiDepositTransaction } from '@/lib/sui/client';
-
-import { useWallet as useSolanaWallet } from '@solana/wallet-adapter-react';
-import { useSignAndExecuteTransaction, useCurrentAccount } from '@mysten/dapp-kit';
 
 interface DepositModalProps {
   isOpen: boolean;
@@ -33,28 +23,20 @@ export const DepositModal: React.FC<DepositModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { wallets: privyWallets } = useWallets();
-  const { authenticated, user } = usePrivy();
-
-  // Solana Hook
-  const { signAndSendTransaction: signAndSendSolana, publicKey: solanaPublicKey } = useSolanaWallet();
-
-  // Sui Hooks
-  const { mutateAsync: signAndExecuteSui } = useSignAndExecuteTransaction();
-  const suiAccount = useCurrentAccount();
-
   const { depositFunds, network, walletBalance, refreshWalletBalance, address } = useOverflowStore();
   const toast = useToast();
 
-  const currencySymbol = network === 'SUI' ? 'USDC' : network === 'SOL' ? 'SOL' : network === 'XLM' ? 'XLM' : 'BNB';
-  const networkName = network === 'SUI' ? 'Sui Network' : network === 'SOL' ? 'Solana' : 'BNB Chain';
+  const currencySymbol = 'KAS';
+  const networkName = 'Kaspa Testnet';
 
   // Quick select amounts
-  const quickAmounts = network === 'SUI' ? [1, 5, 10, 25] : [0.1, 0.5, 1, 5];
+  const quickAmounts = [100, 500, 1000, 5000];
 
   // Reset state when modal opens/closes
   useEffect(() => {
-    if (!isOpen) {
+    if (isOpen) {
+      refreshWalletBalance();
+    } else {
       setAmount('');
       setError(null);
       setIsLoading(false);
@@ -97,10 +79,9 @@ export const DepositModal: React.FC<DepositModalProps> = ({
 
   const handleMaxClick = () => {
     if (walletBalance > 0) {
-      // Leave a small amount for gas (except for Sui USDC)
-      const gasBuffer = network === 'SUI' ? 0 : network === 'SOL' ? 0.001 : 0.005;
+      const gasBuffer = 1; // 1 KAS buffer
       const maxAmount = Math.max(0, walletBalance - gasBuffer);
-      setAmount(maxAmount.toFixed(4));
+      setAmount(maxAmount.toFixed(2));
       setError(null);
     }
   };
@@ -122,44 +103,32 @@ export const DepositModal: React.FC<DepositModalProps> = ({
       setError(null);
 
       const depositAmount = parseFloat(amount);
-      let txHash: string;
+      let txHash: string = '';
 
-      if (network === 'SUI') {
-        if (!suiAccount) throw new Error('Sui wallet not connected');
-        toast.info('Please confirm the transaction in your Sui wallet...');
+      // Kaspa KasWare logic
+      if (typeof window !== 'undefined' && (window as any).kasware) {
 
-        const tx = await buildSuiDepositTransaction(depositAmount, address);
-        const result = await signAndExecuteSui({ transaction: tx });
-        txHash = result.digest;
+        const treasuryAddress = process.env.NEXT_PUBLIC_KASPA_TREASURY_ADDRESS;
+        if (!treasuryAddress) throw new Error("Treasury address not configured");
 
-      } else if (network === 'SOL') {
-        if (!solanaPublicKey) throw new Error('Solana wallet not connected');
+        toast.info(`Please confirm ${depositAmount} KAS deposit in your wallet...`);
 
-        const { buildDepositTransaction } = await import('@/lib/solana/client');
-        const transaction = await buildDepositTransaction(depositAmount, address);
+        // Amount in Sompi (1 KAS = 100,000,000 Sompi)
+        const amountSompi = Math.floor(depositAmount * 100000000);
 
-        toast.info('Please confirm the transaction in your Solana wallet...');
+        // Request transaction signing
+        // KasWare sendKaspa takes (address, amount)
+        const result = await (window as any).kasware.sendKaspa(treasuryAddress, amountSompi);
 
-        txHash = await signAndSendSolana(transaction);
+        console.log("Deposit Transaction Result:", result);
+
+        if (!result) throw new Error("Transaction request failed");
+
+        // Handle result format (if it's an object with {id} or just string)
+        txHash = typeof result === 'string' ? result : (result.id || result.txid || JSON.stringify(result));
+
       } else {
-        // BNB (EVM via Privy)
-        if (!authenticated) throw new Error('Not authenticated with Privy');
-        const wallet = privyWallets.find(w => w.address.toLowerCase() === address.toLowerCase());
-        if (!wallet) throw new Error('Privy wallet not found');
-
-        const ethereumProvider = await wallet.getEthereumProvider();
-        const provider = new ethers.BrowserProvider(ethereumProvider);
-        const signer = await provider.getSigner();
-
-        const bnbConfig = getBNBConfig();
-        if (!bnbConfig.treasuryAddress) throw new Error('Treasury address not configured');
-
-        toast.info('Please confirm the transaction in your wallet...');
-        const txResponse = await signer.sendTransaction({
-          to: getAddress(bnbConfig.treasuryAddress),
-          value: ethers.parseEther(depositAmount.toString()),
-        });
-        txHash = txResponse.hash;
+        throw new Error("KasWare wallet not found");
       }
 
       toast.info('Transaction submitted. Waiting for confirmation...');
@@ -171,7 +140,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({
       refreshWalletBalance();
 
       toast.success(
-        `Successfully deposited ${depositAmount.toFixed(4)} ${currencySymbol}! Balance updated.`
+        `Successfully deposited ${depositAmount.toLocaleString()} ${currencySymbol}! Balance updated.`
       );
 
       if (onSuccess) onSuccess(depositAmount, txHash!);
@@ -203,7 +172,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({
             Wallet Balance
           </p>
           <p className="text-[#00f5ff] text-xl font-bold font-mono flex items-center gap-2">
-            {network === 'SUI' && <img src="/usd-coin-usdc-logo.png" alt="USDC" className="w-5 h-5" />}
+
             {walletBalance.toFixed(4)} {currencySymbol}
           </p>
         </div>

@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { useAccount, useBalance } from 'wagmi';
-import { formatUnits } from 'ethers';
+import React, { useEffect } from 'react';
 import { Card } from '@/components/ui/Card';
-import { useOverflowStore } from '@/lib/store';
+import { useStore } from '@/lib/store';
 
 export const WalletInfo: React.FC = () => {
-  const { network, address, isConnected, walletBalance, refreshWalletBalance } = useOverflowStore();
+  const address = useStore((state) => state.address);
+  const isConnected = !!address;
+  const walletBalance = useStore((state) => state.walletBalance);
+  const refreshWalletBalance = useStore((state) => state.refreshWalletBalance);
 
   // Polling for balance updates
   useEffect(() => {
@@ -16,7 +17,7 @@ export const WalletInfo: React.FC = () => {
       }, 10000); // Poll every 10s
       return () => clearInterval(interval);
     }
-  }, [isConnected, address, network]);
+  }, [isConnected, address]);
 
   if (!isConnected || !address) {
     return null;
@@ -24,15 +25,13 @@ export const WalletInfo: React.FC = () => {
 
   // Format address
   const formatAddress = (addr: string) => {
-    if (addr.length <= 10) return addr;
-    return `${addr.slice(0, 5)}...${addr.slice(-4)}`;
+    if (addr.length <= 15) return addr;
+    return `${addr.slice(0, 6)}...${addr.slice(-6)}`;
   };
 
-  const currencySymbol = network === 'SUI' ? 'USDC' : network === 'SOL' ? 'SOL' : network === 'XLM' ? 'XLM' : 'BNB';
-  const networkName = network === 'SUI' ? 'Sui Network' : network === 'SOL' ? 'Solana' : 'BNB Chain';
-
-  const balance = walletBalance.toFixed(4);
-  const isLoading = false; // Store doesn't have isLoading for wallet balance yet, but fetch is fast
+  const currencySymbol = 'KAS';
+  const networkName = 'Kaspa Network';
+  const balance = walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
     <Card className="min-w-[200px] border border-white/10 !bg-black/40 backdrop-blur-md">
@@ -40,7 +39,7 @@ export const WalletInfo: React.FC = () => {
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center p-1 border border-white/10 shrink-0">
             <img
-              src={network === 'SUI' ? '/logos/sui-logo.png' : network === 'SOL' ? '/logos/solana-sol-logo.png' : '/logos/bnb-bnb-logo.png'}
+              src="/logos/kaspa-logo.png"
               alt={networkName}
               className="w-full h-full object-contain"
             />
@@ -54,8 +53,8 @@ export const WalletInfo: React.FC = () => {
         <div className="pt-2 border-t border-white/5">
           <p className="text-gray-400 text-[10px] uppercase tracking-wider font-mono">{currencySymbol} Balance</p>
           <div className="flex items-center gap-2">
-            <p className="text-[#00f5ff] font-bold text-lg font-mono drop-shadow-[0_0_8px_rgba(0,245,255,0.5)]">
-              {isLoading ? 'Loading...' : `${balance}`}
+            <p className="text-[#70C7BA] font-bold text-lg font-mono drop-shadow-[0_0_8px_rgba(112,199,186,0.5)]">
+              {balance}
             </p>
             <span className="text-[10px] text-gray-500 font-bold uppercase mt-1">{currencySymbol}</span>
           </div>

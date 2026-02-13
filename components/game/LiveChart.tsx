@@ -169,7 +169,7 @@ export const LiveChart: React.FC<LiveChartProps> = ({ betAmount, setBetAmount })
     DOGE: { name: 'Dogecoin', symbol: 'DOGE', pair: 'DOGE/USD', decimals: 5, logo: '/logos/dogecoin-doge-logo.png', category: 'Crypto' },
     ADA: { name: 'Cardano', symbol: 'ADA', pair: 'ADA/USD', decimals: 4, logo: '/logos/cardano-ada-logo.png', category: 'Crypto' },
     BCH: { name: 'Bitcoin Cash', symbol: 'BCH', pair: 'BCH/USD', decimals: 2, logo: '/logos/bitcoin-cash-bch-logo.png', category: 'Crypto' },
-    BNB: { name: 'Binance Coin', symbol: 'BNB', pair: 'BNB/USD', decimals: 2, logo: '/logos/bnb-bnb-logo.png', category: 'Crypto' },
+    KAS: { name: 'Kaspa', symbol: 'KAS', pair: 'KAS/USD', decimals: 4, logo: '/logos/kaspa-logo.png', category: 'Crypto' },
     SUI: { name: 'Sui', symbol: 'SUI', pair: 'SUI/USD', decimals: 3, logo: '/logos/sui-logo.png', category: 'Crypto' },
     XLM: { name: 'Stellar', symbol: 'XLM', pair: 'XLM/USD', decimals: 5, logo: '/logos/stellar-xlm-logo.png', category: 'Crypto' },
     // Metals

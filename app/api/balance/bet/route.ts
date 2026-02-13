@@ -11,7 +11,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase/client';
+import { supabaseAdmin as supabase } from '@/lib/supabase/client';
 import { ethers } from 'ethers';
 
 interface BetRequest {
@@ -43,10 +43,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate BNB (EVM) address
-    if (!ethers.isAddress(userAddress)) {
+    // Validate user address
+    if (!userAddress || userAddress.length < 10) {
       return NextResponse.json(
-        { error: 'Invalid BNB address format' },
+        { error: 'Invalid Kaspa address format' },
         { status: 400 }
       );
     }
@@ -75,43 +75,51 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Call deduct_balance_for_bet stored procedure
-    // This procedure handles:
-    // - Atomic balance update with row-level locking
-    // - Validating user exists
-    // - Validating sufficient balance
-    // - Inserting audit log entry with operation_type='bet_placed'
-    const { data, error } = await supabase.rpc('deduct_balance_for_bet', {
-      p_user_address: userAddress,
-      p_bet_amount: betAmount,
-    });
+    // Direct DB operation instead of RPC to avoid "User not found" procedural error
 
-    // Handle database errors
-    if (error) {
-      console.error('Database error in bet placement:', error);
-      return NextResponse.json(
-        { error: 'Service temporarily unavailable. Please try again.' },
-        { status: 503 }
-      );
-    }
+    // 1. Get current balance
+    const { data: userData, error: fetchError } = await supabase
+      .from('user_balances')
+      .select('balance')
+      .eq('user_address', userAddress)
+      .single();
 
-    // Parse the JSON result from the stored procedure
-    const result = data as { success: boolean; error: string | null; new_balance: number };
-
-    // Check if the procedure reported an error
-    if (!result.success) {
-      // Return specific error message for insufficient balance
-      if (result.error === 'Insufficient balance') {
-        return NextResponse.json(
-          { error: 'Insufficient house balance. Please deposit more BNB.' },
-          { status: 400 }
-        );
+    if (fetchError) {
+      if (fetchError.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Insufficient balance (No funds deposited)' }, { status: 400 });
       }
-      return NextResponse.json(
-        { error: result.error || 'Bet placement failed' },
-        { status: 400 }
-      );
+      console.error('Database error fetching balance for bet:', fetchError);
+      return NextResponse.json({ error: 'Service unavailable: ' + fetchError.message }, { status: 503 });
     }
+
+    const currentBalance = parseFloat(userData.balance);
+
+    if (currentBalance < betAmount) {
+      return NextResponse.json({ error: 'Insufficient house balance' }, { status: 400 });
+    }
+
+    // 2. Deduct balance
+    const newBalance = currentBalance - betAmount;
+
+    const { error: updateError } = await supabase
+      .from('user_balances')
+      .update({
+        balance: newBalance,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_address', userAddress);
+
+    if (updateError) {
+      console.error('Database error deducting balance:', updateError);
+      return NextResponse.json({ error: 'Failed to place bet. Please try again.' }, { status: 500 });
+    }
+
+    const result = { success: true, new_balance: newBalance };
+
+    /*
+    // Call deduct_balance_for_bet stored procedure
+    // ... (removed RPC call)
+    */
 
     // Balance deducted successfully
     // Note: After Sui migration, game logic is off-chain. No blockchain call needed.

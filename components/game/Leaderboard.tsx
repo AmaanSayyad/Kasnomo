@@ -168,7 +168,7 @@ export const Leaderboard: React.FC = () => {
                                                 {/* Profit */}
                                                 <div className="text-right flex-shrink-0">
                                                     <p className={`text-sm font-black font-mono ${entry.net_profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                        {entry.net_profit >= 0 ? '+' : ''}{entry.net_profit.toFixed(4)}
+                                                        {entry.net_profit >= 0 ? '+' : ''}{entry.net_profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                     </p>
                                                     <p className="text-[8px] text-gray-500 font-bold uppercase tracking-wider">
                                                         Profit

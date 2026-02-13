@@ -22,8 +22,8 @@ const orbitron = Orbitron({
 });
 
 export const metadata: Metadata = {
-  title: "Binomo",
-  description: "Real-time BTC/BNB price prediction platform on BNB Smart Chain",
+  title: "Kasnomo",
+  description: "Real-time BlockDAG price prediction platform on Kaspa Network",
   icons: {
     icon: "/overflowlogo.ico",
     shortcut: "/overflowlogo.ico",

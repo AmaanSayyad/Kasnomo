@@ -37,6 +37,7 @@ export const PRICE_FEED_IDS = {
   TSLA: '0x16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1',
   META: '0x78a3e3b8e676a8f73c439f5d749737034b139bbbe899ba5775216fba596607fe',
   NFLX: '0x8376cfd7ca8bcdf372ced05307b24dced1f15b1afafdeff715664598f15a3dd2',
+  KAS: 'kaspa-coingecko-id', // Special ID to trigger CoinGecko fallback
 } as const;
 
 export type AssetType = keyof typeof PRICE_FEED_IDS;
@@ -65,9 +66,53 @@ export class PythPriceFeed {
   }
 
   /**
-   * Fetch current price from Pyth Network
+   * Fetch current price from Pyth Network or CoinGecko (for KAS)
    */
   async fetchPrice(): Promise<PriceData> {
+    // Detect KAS asset and divert to CoinGecko
+    if (this.asset === 'KAS') {
+      try {
+        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=kaspa&vs_currencies=usd&include_last_updated_at=true');
+
+        if (!response.ok) {
+          throw new Error(`CoinGecko error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (!data.kaspa || !data.kaspa.usd) {
+          throw new Error('No price data received from CoinGecko');
+        }
+
+        const price = data.kaspa.usd;
+        const timestamp = data.kaspa.last_updated_at;
+
+        this.lastPrice = price;
+
+        return {
+          price,
+          confidence: 0, // CoinGecko doesn't provide confidence intervals
+          timestamp,
+          expo: -8
+        };
+      } catch (error) {
+        console.warn(`Error fetching KAS price from CoinGecko:`, error);
+
+        if (this.lastPrice !== null) {
+          return {
+            price: this.lastPrice,
+            confidence: 0,
+            timestamp: Date.now() / 1000,
+            expo: -8
+          };
+        }
+        // If critical failure on first load, maybe return a default 0 or throw
+        throw error;
+      }
+    }
+
+
+    // Default Pyth logic for other assets
     try {
       // Ensure ID has 0x prefix and use ids[] format
       const id = PRICE_FEED_IDS[this.asset].startsWith('0x')
@@ -180,10 +225,12 @@ export class PythPriceFeed {
    * Fetch multiple prices at once
    */
   static async fetchAllPrices(): Promise<Record<AssetType, number>> {
-    const ids = Object.values(PRICE_FEED_IDS).map(id => id.startsWith('0x') ? id : `0x${id}`);
-    const symbols = Object.keys(PRICE_FEED_IDS) as AssetType[];
+    const validEntries = Object.entries(PRICE_FEED_IDS).filter(([_, id]) => id.startsWith('0x'));
+    const ids = validEntries.map(([_, id]) => id);
+    // const symbols = validEntries.map(([symbol, _]) => symbol as AssetType); // Use this if index matching required
 
     try {
+      if (ids.length === 0) return {} as Record<AssetType, number>;
       const queryString = ids.map(id => `ids%5B%5D=${id}`).join('&');
       const response = await fetch(`${HERMES_ENDPOINT}/v2/updates/price/latest?${queryString}`);
 
@@ -205,6 +252,8 @@ export class PythPriceFeed {
       if (!priceFeeds || !priceFeeds.parsed || priceFeeds.parsed.length === 0) {
         return {} as Record<AssetType, number>;
       }
+
+      const symbols = validEntries.map(([symbol, _]) => symbol as AssetType);
 
       const results: any = {};
       priceFeeds.parsed.forEach((feed: any) => {
@@ -239,9 +288,32 @@ export const startMultiPythPriceFeed = (
 ): (() => void) => {
   let intervalId: NodeJS.Timeout | null = null;
 
+  let lastKasFetchTime = 0;
+  let cachedKasPrice: number | null = null;
+
   const update = async () => {
     try {
+      // 1. Fetch Pyth prices
       const prices = await PythPriceFeed.fetchAllPrices();
+
+      // 2. Fetch KAS price (CoinGecko) separately (Throttled to 30s)
+      try {
+        if (Date.now() - lastKasFetchTime > 30000) {
+          const kasData = await fetchPrice('KAS');
+          if (kasData && kasData.price) {
+            cachedKasPrice = kasData.price;
+            lastKasFetchTime = Date.now();
+          }
+        }
+
+        if (cachedKasPrice !== null) {
+          prices['KAS'] = cachedKasPrice;
+        }
+      } catch (kasError) {
+        // Silent fail for KAS to not disrupt other feeds
+        // console.warn('KAS price fetch failed in multi-feed', kasError);
+      }
+
       callback(prices);
     } catch (err) {
       console.error('Multi-price feed update failed:', err);

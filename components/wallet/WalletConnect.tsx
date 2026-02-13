@@ -1,60 +1,17 @@
 import React from 'react';
-import { usePrivy } from '@privy-io/react-auth';
-import { useOverflowStore } from '@/lib/store';
-import { useWallet as useSolanaWallet } from '@solana/wallet-adapter-react';
-import { useDisconnectWallet as useSuiDisconnect } from '@mysten/dapp-kit';
+import { useStore } from '@/lib/store';
 
 export const WalletConnect: React.FC = () => {
-  const { logout: logoutPrivy, authenticated, user, ready } = usePrivy();
-  const { disconnect: disconnectSolana, connected: solanaConnected } = useSolanaWallet();
-  const { mutate: disconnectSui } = useSuiDisconnect();
+  const address = useStore((state) => state.address);
+  const setConnectModalOpen = useStore((state) => state.setConnectModalOpen);
+  const disconnect = useStore((state) => state.disconnect);
 
-  const { network, address, setConnectModalOpen, disconnect: disconnectStore, setPreferredNetwork } = useOverflowStore();
-
-  const formatAddress = (addr: string) => {
-    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-  };
-
-  const handleDisconnect = () => {
-    if (network === 'BNB') logoutPrivy();
-    else if (network === 'SOL') disconnectSolana();
-    else if (network === 'SUI') disconnectSui();
-    else if (network === 'XLM') {
-      import('@/lib/stellar/wallet-kit').then(m => m.disconnectWallet());
-    }
-
-    // Explicitly reset our store state and preference
-    disconnectStore();
-    setPreferredNetwork(null);
-  };
-
-  const getNetworkIcon = () => {
-    switch (network) {
-      case 'SOL': return '/logos/solana-sol-logo.png';
-      case 'SUI': return '/sui-logo.png';
-      case 'BNB': return '/logos/bnb-bnb-logo.png';
-      case 'XLM': return '/logos/stellar-xlm-logo.png';
-      default: return '/logos/bnb-bnb-logo.png';
-    }
-  };
-
-  const getNetworkName = () => {
-    switch (network) {
-      case 'SOL': return 'SOL';
-      case 'SUI': return 'SUI';
-      case 'BNB': return 'BNB';
-      case 'XLM': return 'XLM';
-      default: return 'Connected';
-    }
+  const shortenAddress = (addr: string) => {
+    if (!addr) return '...';
+    return `${addr.slice(0, 4)}...${addr.slice(-4)}`;
   };
 
   const isConnected = !!address;
-
-  if (!ready) {
-    return (
-      <div className="w-20 h-8 bg-white/5 animate-pulse rounded-lg" />
-    );
-  }
 
   return (
     <div className="flex items-center gap-3">
@@ -64,30 +21,30 @@ export const WalletConnect: React.FC = () => {
           data-tour="connect-button"
           className="px-4 py-1.5 bg-white/5 hover:bg-white/10 text-white rounded-lg text-[10px] font-bold uppercase tracking-widest border border-white/10 transition-all active:scale-95"
         >
-          Connect
+          Connect KasWare
         </button>
       ) : (
         <div className="flex items-center gap-1.5 sm:gap-2">
           <div className="bg-white/5 border border-white/10 rounded-xl px-2 sm:px-3 py-1.5 flex items-center gap-2 sm:gap-2.5">
             <div className="w-4 h-4 shrink-0">
               <img
-                src={getNetworkIcon()}
-                alt="Network"
+                src="/logos/kaspa-logo.png"
+                alt="Kaspa"
                 className="w-full h-full object-contain"
               />
             </div>
             <div className="flex flex-col items-center sm:items-end">
-              <span className="text-[8px] text-gray-500 font-bold uppercase tracking-tighter">
-                {getNetworkName()}
+              <span className="text-[8px] text-[#70C7BA] font-bold uppercase tracking-tighter">
+                KASPA
               </span>
               <span className="text-white text-[10px] sm:text-[11px] font-mono leading-none">
-                {address ? `${address.slice(0, 4)}...${address.slice(-3)}` : '...'}
+                {shortenAddress(address)}
               </span>
             </div>
           </div>
 
           <button
-            onClick={handleDisconnect}
+            onClick={() => disconnect()}
             className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-500 hover:bg-red-500/20 transition-all"
             title="Disconnect"
           >

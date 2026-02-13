@@ -25,11 +25,10 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   const { address, withdrawFunds, houseBalance, network, refreshWalletBalance } = useOverflowStore();
-  const { authenticated } = usePrivy();
   const toast = useToast();
 
-  const currencySymbol = network === 'SUI' ? 'USDC' : network === 'SOL' ? 'SOL' : network === 'XLM' ? 'XLM' : 'BNB';
-  const networkName = network === 'SUI' ? 'Sui Network' : network === 'SOL' ? 'Solana' : 'BNB Chain';
+  const currencySymbol = 'KAS';
+  const networkName = 'Kaspa Testnet';
 
   // Reset state when modal opens/closes
   useEffect(() => {
@@ -83,7 +82,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
       return;
     }
 
-    if (!authenticated || !address) {
+    if (!address) {
       setError('Please connect your wallet');
       return;
     }
@@ -104,7 +103,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
       console.log('Withdrawal successful:', result.txHash);
 
       toast.success(
-        `Successfully withdrew ${withdrawAmount.toFixed(4)} ${currencySymbol}! Balance updated.`
+        `Successfully withdrew ${withdrawAmount.toLocaleString()} ${currencySymbol}! Balance updated.`
       );
 
       if (onSuccess) onSuccess(withdrawAmount, result.txHash);
@@ -136,8 +135,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
             Available to Withdraw
           </p>
           <p className="text-[#FF006E] text-xl font-bold font-mono flex items-center gap-2">
-            {network === 'SUI' && <img src="/usd-coin-usdc-logo.png" alt="USDC" className="w-5 h-5" />}
-            {houseBalance.toFixed(4)} {currencySymbol}
+            {houseBalance.toLocaleString()} {currencySymbol}
           </p>
         </div>
 

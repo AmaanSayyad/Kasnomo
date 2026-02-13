@@ -10,7 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase/client';
+import { supabaseAdmin as supabase } from '@/lib/supabase/client';
 import { ethers } from 'ethers';
 
 export async function GET(
@@ -24,31 +24,24 @@ export async function GET(
     // Validate address (support BNB, Solana, and Sui)
     let isValid = false;
 
+    // Check if it's a valid Kaspa address
+    if (address.startsWith('kaspa:') || address.startsWith('kaspatest:')) {
+      isValid = true;
+    }
     // Check if it's a valid EVM address (BNB)
-    if (ethers.isAddress(address)) {
+    else if (ethers.isAddress(address)) {
       isValid = true;
-    } else if (/^0x[0-9a-fA-F]{64}$/.test(address)) {
-      // Check if it's a valid Sui address
-      isValid = true;
-    } else {
-      // Check if it's a valid Solana address
-      try {
-        const { PublicKey } = await import('@solana/web3.js');
-        const pk = new PublicKey(address);
-        isValid = pk.toBuffer().length === 32;
-      } catch (e) {
-        // Check if it's a valid Stellar address (starts with G, 56 characters)
-        if (/^G[A-Z2-7]{55}$/.test(address)) {
-          isValid = true;
-        } else {
-          isValid = false;
-        }
+      // Check if it's a valid Sui address (Legacy - Optional)
+      if (/^0x[0-9a-fA-F]{64}$/.test(address)) {
+        isValid = true;
       }
+
+      // Removed Solana/Stellar checks as project is Kaspa focused
     }
 
     if (!isValid) {
       return NextResponse.json(
-        { error: 'Invalid wallet address format (BNB, Solana, Sui or Stellar required)' },
+        { error: 'Invalid wallet address format (Kaspa, EVM, Solana, Sui or Stellar required)' },
         { status: 400 }
       );
     }
@@ -56,7 +49,7 @@ export async function GET(
     // Query user_balances table by user_address
     const { data, error } = await supabase
       .from('user_balances')
-      .select('balance, updated_at, user_tier')
+      .select('balance, updated_at')
       .eq('user_address', address)
       .single();
 
@@ -72,9 +65,9 @@ export async function GET(
       }
 
       // Log other database errors
-      console.error('Database error fetching balance:', error);
+      console.error(`Database error fetching balance for ${address}:`, JSON.stringify(error, null, 2));
       return NextResponse.json(
-        { error: 'Service temporarily unavailable. Please try again.' },
+        { error: 'Service temporarily unavailable: ' + (error.message || error.code) },
         { status: 503 }
       );
     }
@@ -83,7 +76,7 @@ export async function GET(
     return NextResponse.json({
       balance: parseFloat(data.balance),
       updatedAt: data.updated_at,
-      tier: data.user_tier || 'free'
+      tier: 'free'
     });
   } catch (error) {
     // Handle unexpected errors
