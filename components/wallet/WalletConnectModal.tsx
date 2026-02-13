@@ -22,11 +22,19 @@ export const WalletConnectModal: React.FC = () => {
         try {
             const accounts = await kasware.requestAccounts();
             if (accounts && accounts.length > 0) {
+                const address = accounts[0];
                 setPreferredNetwork('KAS');
                 useOverflowStore.getState().setNetwork('KAS');
-                useOverflowStore.getState().setAddress(accounts[0]);
+                useOverflowStore.getState().setAddress(address);
                 useOverflowStore.getState().setIsConnected(true);
+                
+                // Fetch both wallet and house balance
                 useOverflowStore.getState().refreshWalletBalance();
+                const fetchBalance = useOverflowStore.getState().fetchBalance;
+                if (fetchBalance) {
+                    fetchBalance(address);
+                }
+                
                 setOpen(false);
             }
         } catch (error) {

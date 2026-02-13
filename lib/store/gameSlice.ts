@@ -564,7 +564,10 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
         resolveBet(bet.id, won, payout);
 
         // Update real balance if necessary
-        if (accountType === 'real' && address && won) {
+        const isDemoMode = accountType === 'demo' || address?.startsWith('0xDEMO');
+        
+        if (!isDemoMode && address && won) {
+          // Real mode - credit winnings via API
           fetch('/api/balance/win', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -573,10 +576,16 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
               winAmount: payout,
               betId: bet.id
             })
-          }).then(() => {
-            if (fetchBalance) fetchBalance(address);
+          }).then(async (response) => {
+            if (response.ok && fetchBalance) {
+              // Fetch updated balance from server
+              await fetchBalance(address);
+            } else {
+              console.error('Failed to credit winnings');
+            }
           }).catch(console.error);
-        } else if (accountType === 'demo' && won) {
+        } else if (isDemoMode && won) {
+          // Demo mode - update local balance
           updateBalance(payout, 'add');
         }
       }

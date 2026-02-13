@@ -22,6 +22,7 @@ import { useToast } from '@/lib/hooks/useToast';
  * - Deposit and Withdraw buttons with modals
  * - Show loading state while fetching
  * - Format balance to 2 decimal places
+ * - Auto-fetch balance on component mount
  */
 export const BalanceDisplay: React.FC = () => {
   const houseBalance = useOverflowStore(state => state.houseBalance);
@@ -42,6 +43,13 @@ export const BalanceDisplay: React.FC = () => {
   // Actions from other slices (using the unified store)
   const setAddress = useOverflowStore(state => state.setAddress);
   const setIsConnected = useOverflowStore(state => state.setIsConnected);
+
+  // Auto-fetch balance on component mount and when address changes
+  React.useEffect(() => {
+    if (address && accountType === 'real' && !address.startsWith('0xDEMO')) {
+      fetchBalance(address);
+    }
+  }, [address, accountType, fetchBalance]);
 
   /**
    * Exit demo mode and reset demo credentials

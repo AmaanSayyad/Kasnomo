@@ -18,6 +18,7 @@ function WalletSync() {
     setIsConnected,
     setNetwork,
     refreshWalletBalance,
+    fetchBalance,
     preferredNetwork
   } = useOverflowStore();
 
@@ -31,10 +32,16 @@ function WalletSync() {
       try {
         const accounts = await kasware.getAccounts();
         if (accounts && accounts.length > 0 && preferredNetwork === 'KAS') {
-          setAddress(accounts[0]);
+          const address = accounts[0];
+          setAddress(address);
           setIsConnected(true);
           setNetwork('KAS');
+          
+          // Fetch both wallet and house balance
           refreshWalletBalance();
+          if (fetchBalance) {
+            fetchBalance(address);
+          }
         }
       } catch (err) {
         console.error('Kaspa sync error:', err);
@@ -47,10 +54,16 @@ function WalletSync() {
     if (typeof window !== 'undefined' && (window as any).kasware) {
       (window as any).kasware.on('accountsChanged', (accounts: string[]) => {
         if (accounts.length > 0) {
-          setAddress(accounts[0]);
+          const address = accounts[0];
+          setAddress(address);
           setIsConnected(true);
           setNetwork('KAS');
+          
+          // Fetch both wallet and house balance
           refreshWalletBalance();
+          if (fetchBalance) {
+            fetchBalance(address);
+          }
         } else {
           setAddress(null);
           setIsConnected(false);
@@ -58,7 +71,7 @@ function WalletSync() {
         }
       });
     }
-  }, [preferredNetwork, setAddress, setIsConnected, setNetwork, refreshWalletBalance]);
+  }, [preferredNetwork, setAddress, setIsConnected, setNetwork, refreshWalletBalance, fetchBalance]);
 
   return null;
 }

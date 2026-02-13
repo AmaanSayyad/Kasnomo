@@ -70,6 +70,7 @@ export const LiveChart: React.FC<LiveChartProps> = ({ betAmount, setBetAmount })
   const updateBalance = useStore((state) => state.updateBalance);
   const userAddress = useStore((state) => state.address);
   const houseBalance = useStore((state) => state.houseBalance);
+  const accountType = useStore((state) => state.accountType);
 
   const gameMode = useStore((state) => state.gameMode);
   const timeframeSeconds = useStore((state) => state.timeframeSeconds);
@@ -734,7 +735,7 @@ export const LiveChart: React.FC<LiveChartProps> = ({ betAmount, setBetAmount })
         }
 
         // Update house balance via API (skip for demo mode)
-        const isDemoMode = userAddress?.startsWith('0xDEMO');
+        const isDemoMode = accountType === 'demo' || userAddress?.startsWith('0xDEMO');
 
         if (userAddress && !isDemoMode) {
           // Real mode - use API
@@ -747,16 +748,25 @@ export const LiveChart: React.FC<LiveChartProps> = ({ betAmount, setBetAmount })
                 winAmount: payout,
                 betId: bet.betId
               })
-            }).then(() => {
-              fetchBalance(userAddress);
+            }).then(async (response) => {
+              if (response.ok) {
+                // Fetch updated balance from server
+                await fetchBalance(userAddress);
+              } else {
+                console.error('Failed to credit winnings');
+              }
             }).catch(console.error);
           } else {
             // If lost, just refresh balance (already deducted)
             fetchBalance(userAddress);
           }
-        } else if (isDemoMode && won) {
-          // Demo mode - update locally on win (bet amount already subtracted)
-          updateBalance(payout, 'add');
+        } else if (isDemoMode) {
+          // Demo mode - update locally
+          if (won) {
+            // Add payout to demo balance
+            updateBalance(payout, 'add');
+          }
+          // Note: bet amount was already deducted when bet was placed
         }
 
         // Add to resolved cells for visual feedback

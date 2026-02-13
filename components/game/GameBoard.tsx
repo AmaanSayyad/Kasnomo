@@ -33,16 +33,21 @@ export const GameBoard: React.FC = () => {
     setActiveTab,
     userTier,
     refreshWalletBalance,
+    fetchBalance,
     connect,
     disconnect
   } = useStore();
 
-  // Refresh wallet balance when switching to wallet tab
+  // Refresh wallet and house balance when switching to wallet tab
   useEffect(() => {
-    if (activeTab === 'wallet' && isConnected) {
+    if (activeTab === 'wallet' && isConnected && address) {
       refreshWalletBalance();
+      // Also fetch house balance from Supabase (skip for demo mode)
+      if (fetchBalance && !address.startsWith('0xDEMO')) {
+        fetchBalance(address);
+      }
     }
-  }, [activeTab, isConnected, refreshWalletBalance]);
+  }, [activeTab, isConnected, address, refreshWalletBalance, fetchBalance]);
 
   const [betAmount, setBetAmount] = useState<string>('0.1');
   const [selectedDuration, setSelectedDuration] = useState<number>(30);
