@@ -37,6 +37,13 @@ export const GameBoard: React.FC = () => {
     disconnect
   } = useStore();
 
+  // Refresh wallet balance when switching to wallet tab
+  useEffect(() => {
+    if (activeTab === 'wallet' && isConnected) {
+      refreshWalletBalance();
+    }
+  }, [activeTab, isConnected, refreshWalletBalance]);
+
   const [betAmount, setBetAmount] = useState<string>('0.1');
   const [selectedDuration, setSelectedDuration] = useState<number>(30);
   const [isPanelOpen, setIsPanelOpen] = useState(true);
