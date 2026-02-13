@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase/client';
+import { supabaseAdmin as supabase } from '@/lib/supabase/client';
 import { ethers } from 'ethers';
 
 interface WinRequest {
@@ -52,8 +52,16 @@ export async function POST(request: NextRequest) {
             .eq('user_address', userAddress)
             .single();
 
-        if (fetchError || !userData) {
-            console.error('Error fetching user balance:', fetchError);
+        if (fetchError) {
+            console.error('Error fetching user balance for win:', fetchError);
+            // If RLS blocked it or other error
+            return NextResponse.json(
+                { error: 'Failed to access user balance' },
+                { status: 500 }
+            );
+        }
+
+        if (!userData) {
             return NextResponse.json(
                 { error: 'User not found' },
                 { status: 404 }
