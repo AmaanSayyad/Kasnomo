@@ -83,37 +83,6 @@ graph TB
     GameEngine --> Supabase
 ```
 
-### User & data flow
-
-```mermaid
-flowchart LR
-    subgraph Entry["1. Connect & Fund"]
-        A[User] --> B[KasWare Connect]
-        B --> C[Deposit KAS]
-        C --> D[Treasury On-Chain]
-        D --> E[API credits balance]
-        E --> F[(Supabase)]
-    end
-
-    subgraph Trade["2. Trade"]
-        F --> G[Place Bet]
-        G --> H[API /bet]
-        H --> I[Deduct house balance]
-        I --> J[Pyth price feed]
-        J --> K[Round expiry]
-    end
-
-    subgraph Settle["3. Settle & Withdraw"]
-        K --> L[Resolve win/loss]
-        L --> M[API payout/win]
-        M --> N[Update balance]
-        N --> O[Withdraw request]
-        O --> P[Treasury → User wallet]
-    end
-
-    Entry --> Trade --> Settle
-```
-
 ### Deposit flow (sequence)
 
 ```mermaid
@@ -192,41 +161,6 @@ sequenceDiagram
     UI->>U: Withdrawal complete
 ```
 
-### Layer / stack diagram
-
-```mermaid
-graph TB
-    subgraph Presentation["Presentation"]
-        P1[Next.js App Router]
-        P2[React 19 + TS]
-        P3[Tailwind + Framer]
-    end
-
-    subgraph State["State & Wallet"]
-        S1[Zustand]
-        S2[KasWare Provider]
-    end
-
-    subgraph API["API Layer"]
-        A1["/balance/deposit"]
-        A2["/balance/bet"]
-        A3["/balance/win"]
-        A4["/balance/withdraw"]
-        A5["/bets/history"]
-    end
-
-    subgraph External["External Services"]
-        E1[Pyth Hermes]
-        E2[Kaspa RPC]
-        E3[(Supabase)]
-    end
-
-    Presentation --> State
-    State --> API
-    API --> E1
-    API --> E2
-    API --> E3
-```
 
 - **Kaspa** — Deposits, withdrawals, single treasury; native KAS.
 - **Pyth Hermes** — Real-time price attestations for resolution (crypto, stocks, FX, metals).
