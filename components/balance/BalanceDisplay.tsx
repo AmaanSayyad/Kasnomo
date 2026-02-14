@@ -112,9 +112,9 @@ export const BalanceDisplay: React.FC = () => {
     // Balance is now updated automatically by the store action
   };
 
-  // Choose balance based on account type
+  // Choose balance based on account type (guard against undefined before hydration or initial load)
   const activeBalance = accountType === 'real' ? houseBalance : demoBalance;
-  const formattedBalance = activeBalance.toFixed(4);
+  const formattedBalance = (typeof activeBalance === 'number' ? activeBalance : 0).toFixed(4);
 
   return (
     <>
