@@ -14,8 +14,8 @@ export interface WalletState {
   walletBalance: number;
   isConnected: boolean;
   isConnecting: boolean;
-  network: 'KAS' | null;
-  preferredNetwork: 'KAS' | null;
+  network: 'KAS' | 'BNB' | null;
+  preferredNetwork: 'KAS' | 'BNB' | null;
   error: string | null;
   isConnectModalOpen: boolean;
 
@@ -29,8 +29,8 @@ export interface WalletState {
   // Setters for wallet integration
   setAddress: (address: string | null) => void;
   setIsConnected: (connected: boolean) => void;
-  setNetwork: (network: 'KAS' | null) => void;
-  setPreferredNetwork: (network: 'KAS' | null) => void;
+  setNetwork: (network: 'KAS' | 'BNB' | null) => void;
+  setPreferredNetwork: (network: 'KAS' | 'BNB' | null) => void;
 }
 
 /**
@@ -44,7 +44,7 @@ export const createWalletSlice: StateCreator<WalletState> = (set, get) => ({
   isConnected: false,
   isConnecting: false,
   network: null,
-  preferredNetwork: typeof window !== 'undefined' ? localStorage.getItem('kasnomo_preferred_network') as 'KAS' | null : null,
+  preferredNetwork: typeof window !== 'undefined' ? localStorage.getItem('kasnomo_preferred_network') as 'KAS' | 'BNB' | null : null,
   error: null,
   isConnectModalOpen: false,
 
@@ -149,14 +149,14 @@ export const createWalletSlice: StateCreator<WalletState> = (set, get) => ({
   /**
    * Set active network
    */
-  setNetwork: (network: 'KAS' | null) => {
+  setNetwork: (network: 'KAS' | 'BNB' | null) => {
     set({ network });
   },
 
   /**
    * Set preferred network
    */
-  setPreferredNetwork: (network: 'KAS' | null) => {
+  setPreferredNetwork: (network: 'KAS' | 'BNB' | null) => {
     set({ preferredNetwork: network });
     if (typeof window !== 'undefined') {
       if (network) {

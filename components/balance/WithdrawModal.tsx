@@ -5,7 +5,6 @@ import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { useOverflowStore } from '@/lib/store';
 import { useToast } from '@/lib/hooks/useToast';
-import { usePrivy } from '@privy-io/react-auth';
 
 interface WithdrawModalProps {
   isOpen: boolean;

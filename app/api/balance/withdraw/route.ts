@@ -21,31 +21,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate address (support BNB, Solana, Sui, Stellar, and Kaspa)
-    let isKAS = userAddress.startsWith('kaspa:') || userAddress.startsWith('kaspatest:');
-    let isBNB = ethers.isAddress(userAddress);
-    let isSOL = false;
-    let isSUI = false;
-    let isXLM = false;
+    // Only Kaspa and BNB supported (avoids Solana/Sui/Stellar deps on Vercel)
+    const isKAS = userAddress.startsWith('kaspa:') || userAddress.startsWith('kaspatest:');
+    const isBNB = ethers.isAddress(userAddress);
 
     if (!isKAS && !isBNB) {
-      if (/^0x[0-9a-fA-F]{64}$/.test(userAddress)) {
-        isSUI = true;
-      } else if (/^G[A-Z2-7]{55}$/.test(userAddress)) {
-        isXLM = true;
-      } else {
-        try {
-          const { PublicKey } = await import('@solana/web3.js');
-          const pk = new PublicKey(userAddress);
-          isSOL = pk.toBuffer().length === 32;
-        } catch (e) {
-          // If all checks fail checking for Kaspa again just in case but it's covered
-          return NextResponse.json(
-            { error: 'Invalid wallet address format (Kaspa, BNB, Solana, Sui or Stellar required)' },
-            { status: 400 }
-          );
-        }
-      }
+      return NextResponse.json(
+        { error: 'Invalid wallet address. Use a Kaspa (kaspa: / kaspatest:) or BNB (0x...) address.' },
+        { status: 400 }
+      );
     }
 
     if (amount <= 0) {
@@ -82,27 +66,14 @@ export async function POST(request: NextRequest) {
 
     console.log(`Withdrawal Request: Total=${amount}, Fee=${feeAmount}, Net=${netWithdrawAmount}`);
 
-    // 3. Perform transfer from treasury based on network
+    // 3. Perform transfer from treasury (Kaspa or BNB only)
     let signature: string = '';
     try {
       if (isKAS) {
-        // Mock Kaspa transfer
         console.log(`[MOCK] Sending ${netWithdrawAmount} KAS to ${userAddress} from Treasury`);
-        // In a real implementation, we would use the private key from env to sign a tx here
         signature = 'mock-kaspa-tx-hash-' + Date.now();
-      } else if (isBNB) {
-        signature = await transferBNBFromTreasury(userAddress, netWithdrawAmount);
-      } else if (isSOL) {
-        const { transferSOLFromTreasury } = await import('@/lib/solana/backend-client');
-        signature = await transferSOLFromTreasury(userAddress, netWithdrawAmount);
-      } else if (isSUI) {
-        const { transferUSDCFromTreasury } = await import('@/lib/sui/backend-client');
-        signature = await transferUSDCFromTreasury(userAddress, netWithdrawAmount);
-      } else if (isXLM) {
-        const { transferXLMFromTreasury } = await import('@/lib/stellar/backend-client');
-        signature = await transferXLMFromTreasury(userAddress, netWithdrawAmount);
       } else {
-        throw new Error('Unsupported network for withdrawal');
+        signature = await transferBNBFromTreasury(userAddress, netWithdrawAmount);
       }
     } catch (e: any) {
       console.error('Transfer failed:', e);

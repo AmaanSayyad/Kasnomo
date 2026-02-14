@@ -9,7 +9,7 @@
 
 import { create } from "zustand";
 import { WalletState, createWalletSlice } from "./walletSlice";
-import { GameState, createGameSlice, startPriceFeed, startGlobalPriceFeed } from "./gameSlice";
+import { GameState, createGameSlice } from "./gameSlice";
 import { HistoryState, createHistorySlice, restoreBetHistory } from "./historySlice";
 import { BalanceState, createBalanceSlice } from "./balanceSlice";
 
