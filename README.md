@@ -1,166 +1,378 @@
-# KASNOMO - Kaspa BlockDAG Price Prediction Game
+# ☂️ Kasnomo
 
-KASNOMO is a high-speed real-time BlockDAG price prediction game built on the Kaspa Network. Users deposit KAS coins to their house balance and place bets on Kaspa price movements within 30-second rounds. The system leverages the incredible speed of Kaspa's BlockDAG for near-instant confirmations and combines it with a secure off-chain betting engine for optimal user experience.
+**The first on-chain binary options trading dApp on Kaspa.**
 
-## Core Features
+Powered by **Kaspa** + **Pyth Hermes** price attestations + **Off-chain state (Supabase)** + **x402-style payments**.
 
-- **Ultra-Fast Betting**: 30-second prediction rounds
-- **Kaspa Integration**: Native KAS betting on Kaspa Testnet 10
-- **KasWare Wallet**: Seamless connection with the leading Kaspa wallet
-- **Performance**: Zero-latency betting using off-chain house balance system
-- **Real-Time Data**: Live Candlestick charts and targets
-- **Secure Treasury**: On-chain verified deposits and withdrawals
-- **Provably Fair**: Audit logging for all balance operations
+Simply put: *Trade binary options with oracle-bound resolution and minimal trust.*
+
+**Built for Kaspa** — demonstrating what becomes possible when block times are measured in milliseconds instead of minutes.
+
+---
+
+## Why Kasnomo?
+
+Binary options trading in Web3 barely exists. In Web2, it’s often broken, fraudulent, and algorithmically biased. Why?
+
+- **No sub-second oracles.** Real-time, sub-second data oracles didn’t exist. One news event, one big move, one crash — oracles lag or break.
+- **590M+ crypto users**, **400M+ transactions per day**, and a huge demand for fast, fair prediction products with no equivalent infrastructure.
+
+**Solution: Kasnomo.** Every tick is backed by Pyth oracles. You trade on real-time charts, bet without signing every transaction, and settle in milliseconds — showing what’s possible when block times are measured in milliseconds instead of minutes.
+
+---
+
+## What You Get
+
+- **Real-time resolution** — Pyth Hermes drives millisecond-level price attestations.
+- **20+ markets** — Crypto (BTC, ETH, KAS, SOL, …), stocks (AAPL, NVDA, TSLA), metals (Gold, Silver), forex (EUR, GBP, JPY).
+- **Bet without signing every txn** — Off-chain house balance (Supabase); deposit/withdraw on Kaspa when you choose.
+- **Two modes** — **Classic**: UP/DOWN + expiry (5s, 10s, 15s, 30s, 1m). **Box**: Tap tiles with multipliers; win when the price line touches your tile.
+- **1–10x multipliers** (and Blitz for higher risk/reward), no per-round tx cap, single treasury.
+- **Settlement in &lt;1ms** — Off-chain engine + oracle-bound resolution.
+
+Like a Web2 “Binomo” experience, but on-chain, oracle-backed, and built for Kaspa’s speed.
+
+---
+
+## How It Works (5 Steps)
+
+1. **Connect & fund** — Land on Kasnomo, connect **KasWare Wallet**, and add KAS from KasWare into your Kasnomo (house) balance.
+2. **Choose mode & place bet** — Click Bet, choose amount, then **Classic** (UP/DOWN + expiry) or **Box** (tap multiplier tiles on the chart).
+3. **Classic vs Box**  
+   - **Classic:** Pick direction (UP/DOWN) and expiry (e.g. 5s, 10s, 15s, 30s, 1m).  
+   - **Box:** Tap a tile; if the live price line touches that tile before the round ends, you win at that tile’s multiplier.
+4. **Settlement** — Pyth-backed price determines win/loss. Your house balance updates immediately (additions/ deductions).
+5. **Withdraw** — On withdrawal, funds are sent from the Kaspa treasury to your wallet (profit case: payout; loss case: net refund).
+
+---
 
 ## System Architecture
 
-The application uses a hybrid architecture involving on-chain treasury operations on the Kaspa Network and a high-performance off-chain game engine.
+Hybrid design: **on-chain treasury (Kaspa)** + **off-chain game engine + oracle (Pyth)** + **off-chain state (Supabase)**.
 
-### High-Level Flow
+### High-level system view
 
 ```mermaid
 graph TB
-    subgraph "Client Layer"
-        UI[React Components]
-        Store[Zustand State]
-        KasWare[KasWare Wallet Provider]
+    subgraph Client["Client Layer"]
+        UI[React / Next.js UI]
+        Store[Zustand Store]
+        KasWare[KasWare Wallet]
     end
-    
-    subgraph "Blockchain Layer"
-        KaspaNode[Kaspa RPC Node]
-        Treasury[Testnet Treasury Wallet]
-        KAS[KAS Coin]
+
+    subgraph Blockchain["Blockchain Layer"]
+        KaspaRPC[Kaspa RPC]
+        Treasury[Kaspa Treasury]
+        KAS[KAS]
     end
-    
-    subgraph "Backend Services"
+
+    subgraph Backend["Backend"]
         NextAPI[Next.js API Routes]
         GameEngine[Game Logic]
     end
-    
-    subgraph "Data Layer"
-        Supabase[(Supabase PostgreSQL)]
-        PriceFeed[Price Oracle]
+
+    subgraph Data["Data & Oracle"]
+        Supabase[(Supabase)]
+        Pyth[Pyth Hermes]
     end
-    
-    UI --> Store
-    Store --> KasWare
-    KasWare --> KaspaNode
-    
-    KaspaNode --> Treasury
-    Treasury --> KAS
-    
-    Store --> NextAPI
-    NextAPI --> Supabase
-    NextAPI --> GameEngine
-    
-    GameEngine --> PriceFeed
+
+    UI --> Store --> KasWare
+    KasWare --> KaspaRPC --> Treasury
+    Store --> NextAPI --> GameEngine
+    GameEngine --> Pyth
     GameEngine --> Supabase
 ```
 
-## Technical Stack
+### User & data flow
 
-### Frontend
-- **Next.js 14**: React framework with App Router
-- **TypeScript**: Strictly typed codebase
-- **Tailwind CSS**: Modern utility-first styling
-- **Zustand**: Global state management
-- **KasWare Wallet API**: Native integration for Kaspa wallet
+```mermaid
+flowchart LR
+    subgraph Entry["1. Connect & Fund"]
+        A[User] --> B[KasWare Connect]
+        B --> C[Deposit KAS]
+        C --> D[Treasury On-Chain]
+        D --> E[API credits balance]
+        E --> F[(Supabase)]
+    end
 
-### Blockchain
-- **Kaspa Network**: The world's fastest BlockDAG (Testnet 10)
-- **KasWare**: Browser extension wallet
-- **KAS**: Native currency for all operations
+    subgraph Trade["2. Trade"]
+        F --> G[Place Bet]
+        G --> H[API /bet]
+        H --> I[Deduct house balance]
+        I --> J[Pyth price feed]
+        J --> K[Round expiry]
+    end
 
-### Backend
-- **Next.js API Routes**: Serverless functions
-- **Supabase**: PostgreSQL database with Row Level Security
-- **RPC**: Direct connection to Kaspa public nodes
+    subgraph Settle["3. Settle & Withdraw"]
+        K --> L[Resolve win/loss]
+        L --> M[API payout/win]
+        M --> N[Update balance]
+        N --> O[Withdraw request]
+        O --> P[Treasury → User wallet]
+    end
+
+    Entry --> Trade --> Settle
+```
+
+### Deposit flow (sequence)
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant UI as Kasnomo UI
+    participant KW as KasWare
+    participant K as Kaspa Network
+    participant API as Next.js API
+    participant DB as Supabase
+
+    U->>UI: Click Deposit, enter amount
+    UI->>KW: sendKaspa(treasury, amountSompi)
+    KW->>U: Confirm tx
+    U->>KW: Sign
+    KW->>K: Broadcast tx
+    K-->>KW: txHash
+    KW-->>UI: txHash
+    UI->>API: POST /api/balance/deposit { address, amount, txHash }
+    API->>DB: Upsert user_balances (+amount)
+    DB-->>API: OK
+    API-->>UI: Success
+    UI->>U: Balance updated
+```
+
+### Bet lifecycle (sequence)
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant UI as Game UI
+    participant Store as Zustand
+    participant API as Next.js API
+    participant Pyth as Pyth Hermes
+    participant DB as Supabase
+
+    U->>UI: Place bet (amount, direction/tile)
+    UI->>Store: addActiveBet()
+    Store->>API: POST /api/balance/bet (deduct balance)
+    API->>DB: Decrement user balance, record bet
+    API-->>Store: OK
+
+    loop Until expiry
+        Store->>Pyth: Poll price (1s)
+        Pyth-->>Store: Price update
+        Store->>UI: Update chart & line
+    end
+
+    Store->>Store: Check win/loss (price vs target)
+    Store->>API: POST /api/balance/win or payout
+    API->>DB: Update balance, bet_history
+    API-->>Store: New balance
+    Store->>UI: Show result, update balance
+```
+
+### Withdrawal flow (sequence)
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant UI as Kasnomo UI
+    participant API as Next.js API
+    participant DB as Supabase
+    participant Treasury as Kaspa Treasury
+
+    U->>UI: Request withdrawal (amount)
+    UI->>API: POST /api/balance/withdraw { address, amount }
+    API->>DB: Get balance, validate
+    API->>API: Apply fee (e.g. 2%), net amount
+    API->>Treasury: Sign & send KAS to user (server)
+    Treasury->>U: KAS to wallet
+    Treasury-->>API: tx signature
+    API->>DB: update_balance_for_withdrawal RPC
+    DB-->>API: OK
+    API-->>UI: Success + signature
+    UI->>U: Withdrawal complete
+```
+
+### Layer / stack diagram
+
+```mermaid
+graph TB
+    subgraph Presentation["Presentation"]
+        P1[Next.js App Router]
+        P2[React 19 + TS]
+        P3[Tailwind + Framer]
+    end
+
+    subgraph State["State & Wallet"]
+        S1[Zustand]
+        S2[KasWare Provider]
+    end
+
+    subgraph API["API Layer"]
+        A1["/balance/deposit"]
+        A2["/balance/bet"]
+        A3["/balance/win"]
+        A4["/balance/withdraw"]
+        A5["/bets/history"]
+    end
+
+    subgraph External["External Services"]
+        E1[Pyth Hermes]
+        E2[Kaspa RPC]
+        E3[(Supabase)]
+    end
+
+    Presentation --> State
+    State --> API
+    API --> E1
+    API --> E2
+    API --> E3
+```
+
+- **Kaspa** — Deposits, withdrawals, single treasury; native KAS.
+- **Pyth Hermes** — Real-time price attestations for resolution (crypto, stocks, FX, metals).
+- **Supabase** — House balances, bet history, audit trail (off-chain state).
+- **x402-style** — Payment proof / verification pattern for deposit flows (conceptually aligned with pay-for-data; treasury credits on verified deposit).
+
+---
+
+## Tech Stack
+
+| Layer      | Stack |
+|-----------|--------|
+| **Frontend** | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS, Zustand, Framer Motion |
+| **Blockchain** | Kaspa Network (Testnet 10), KasWare Wallet, KAS |
+| **Oracle** | Pyth Network (Hermes API) — 20+ feeds |
+| **Backend** | Next.js API Routes, Supabase (PostgreSQL, RLS) |
+| **Payments** | Kaspa treasury (on-chain), x402-style verification pattern |
+
+---
+
+## Market Opportunity
+
+- **TAM (binary / prediction):** ~$27.56B (2025) → ~$116B by 2034 (CAGR ~19.8%).
+- **Crypto prediction:** $45B+ annual volume (e.g. Polymarket, Kalshi, on-chain).
+- **Crypto derivatives:** $86T+ annual volume (2025).
+- **Users:** 590M+ crypto users worldwide.
+
+**Goal:** Become the go-to PolyMarket-style venue for binary options — fast, real, simple.
+
+---
+
+## Roadmap & Future
+
+- Expand markets: more stocks, forex, indices.
+- Options, derivatives, futures, and eventually DEX integration.
+- **Ultimate objective:** The default PolyMarket for binary options on Kaspa and beyond.
+
+---
+
+## Competitive Edge
+
+We deliver what others can’t:
+
+- **Fast** — Sub-second oracles + off-chain execution; no per-bet on-chain tx.
+- **Real** — Pyth attestations; resolution is oracle-bound, not opaque or synthetic.
+- **Simple** — One treasury, one wallet (KasWare), clear Classic vs Box UX.
+
+---
+
+## Competitive Landscape
+
+| | **Kasnomo** | **Web2 binary options** (Binomo, IQ Option, etc.) | **Web3 prediction** (Polymarket, Kalshi) | **Other on-chain binary / derivatives** |
+|--|-------------|---------------------------------------------------|-----------------------------------------|----------------------------------------|
+| **Real-time oracle** | ✅ Pyth Hermes (sub-second) | ❌ Opaque / synthetic feeds | ⚠️ Event-based or delayed | ❌ Often none or slow oracles |
+| **Settlement speed** | &lt;1 ms (off-chain engine) | Variable, often disputed | Days (resolution windows) | Block-time bound (minutes) |
+| **Trust / provability** | Oracle-bound, audit log | ❌ Opaque, regulatory issues | ✅ On-chain or attested | ⚠️ Varies |
+| **Binary options focus** | ✅ Native (Classic + Box) | ✅ Yes | ❌ Mostly yes/no markets | ⚠️ Rare, often full options |
+| **Deposit/withdraw** | Kaspa (instant confirmations) | Fiat, KYC | Crypto / fiat, often slow | On-chain, chain speed |
+| **Per-bet signing** | ❌ No (house balance) | ❌ No | ⚠️ Often yes | ✅ Typically every tx |
+| **Multi-asset (crypto, stocks, FX)** | ✅ 20+ via Pyth | ✅ Yes | ⚠️ Limited | ⚠️ Usually crypto only |
+| **Chain** | Kaspa (ms block times) | N/A | Various | ETH, L2s, etc. |
+
+*Kasnomo combines real-time oracle resolution (Pyth), instant-chain treasury (Kaspa), and off-chain execution so users get Web2-like speed with Web3 transparency and no per-bet transactions.*
+
+---
+
+## Kaspa alignment
+
+### Thematic fit: “Build at Internet Speed”
+
+- **Block times in milliseconds** — Kasnomo uses Kaspa’s speed for treasury operations; users deposit/withdraw KAS with instant confirmations instead of waiting for slow chains.
+- **Real-time reactivity** — Pyth Hermes + off-chain engine give sub-second price resolution and settlement; the app is built for “internet speed” UX.
+
+### Category tracks
+
+- **Real-Time Data** — Applications leveraging Kaspa’s reactivity: real-time price attestations (Pyth) drive round resolution; Kaspa anchors value flow (deposits/withdrawals).
+- **Gaming & Interactive** — Interactive binary options experience where each round is driven by live data and balances update in real time.
 
 ## Prerequisites
 
-- Node.js 18+ and npm
-- **KasWare Wallet** browser extension ([Download Here](https://www.kasware.xyz/))
-- Kaspa Testnet (TN10) KAS coins (Get from the [Kaspa Faucet](https://faucet.kaspanet.io/))
+- **Node.js 18+** and npm (or yarn)
+- **KasWare Wallet** ([Download](https://www.kasware.xyz/))
+- **Kaspa Testnet (TN10)** KAS — e.g. [Kaspa Faucet](https://faucet.kaspanet.io/)
+
+---
 
 ## Getting Started
 
-### 1. Install Dependencies
+### 1. Install
 
 ```bash
 npm install
 ```
 
-### 2. Configure Environment
+### 2. Environment
 
-Copy the example or create a new `.env` file:
+Create `.env` (see `.env.example`). Required:
 
 ```bash
+# Kaspa
 NEXT_PUBLIC_KASPA_NETWORK=testnet-10
 NEXT_PUBLIC_KASPA_RPC_ENDPOINT=https://api.kaspa.org/testnet10
+NEXT_PUBLIC_KASPA_TREASURY_ADDRESS=kaspatest:...
+KASPA_TREASURY_PRIVATE_KEY=...
 
-# Supabase Credentials
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-
-# Kaspa Treasury (For deposits/withdrawals)
-NEXT_PUBLIC_KASPA_TREASURY_ADDRESS=kaspatest:qz...
-KASPA_TREASURY_PRIVATE_KEY=your_private_key
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
 ```
 
-### 3. Database Setup
+### 3. Database
 
-Run the SQL migrations found in `supabase/migrations/` in your Supabase SQL Editor to set up:
-- `user_balances`
-- `bet_history`
-- `balance_audit_log`
-- `kaspa_bet_history` (New)
+Run the SQL in `supabase/migrations/` in the Supabase SQL Editor (in order):
 
-### 4. Run the App
+- `001_create_user_balances.sql`
+- `002_*.sql`, `003_*.sql`, `004_*.sql`
+
+This sets up `user_balances`, `user_kaspa_balances`, `kaspa_bet_history`, audit logs, and procedures.
+
+### 4. Run
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open [http://localhost:3000](http://localhost:3000).
 
-## Database Schema
+---
 
-### user_kaspa_balances
-Tracks the off-chain "House Balance" for users.
+## Database (Summary)
 
-| Column | Type | Description |
-|--------|------|-------------|
-| user_address | TEXT | Kaspa wallet address (kaspatest:...) |
-| balance | NUMERIC | Current KAS balance |
-| updated_at | TIMESTAMP | Last interaction |
+- **user_kaspa_balances** — House balance per Kaspa address (KAS).
+- **kaspa_bet_history** — Immutable bet log: wallet, asset, direction, amount, multiplier, payout, won, mode, resolved_at.
 
-### kaspa_bet_history
-Immutable record of all bets placed.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | UUID | Unique bet ID |
-| wallet_address | TEXT | User's Kaspa address |
-| amount | NUMERIC | Bet amount in KAS |
-| direction | TEXT | UP or DOWN |
-| won | BOOLEAN | Outcome of the round |
+---
 
 ## Troubleshooting
 
-### Wallet Not Connecting
-- Ensure **KasWare Wallet** is installed and unlocked.
-- Switch the network in KasWare to **Testnet 10**.
+- **Wallet not connecting** — Install/unlock KasWare; set network to **Testnet 10**.
+- **Insufficient funds** — Use the [faucet](https://faucet.kaspanet.io/) for testnet KAS; deposit into the house balance via the Wallet tab.
 
-### "Insufficient Funds"
-- Request testnet KAS from the [faucet](https://faucet.kaspanet.io/).
-- Ensure you have deposited funds into the house balance via the Wallet tab.
-
-## License
-
-MIT License
+---
 
 ## Resources
 
-- [Kaspa Documentation](https://kaspa.org/documentation)
-- [KasWare Wallet Docs](https://docs.kasware.xyz/)
+- [Kaspa](https://kaspa.org/documentation)
+- [KasWare](https://docs.kasware.xyz/)
+- [Pyth Network](https://pyth.network/)
