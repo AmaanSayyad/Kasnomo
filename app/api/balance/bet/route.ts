@@ -137,12 +137,25 @@ export async function POST(request: NextRequest) {
         targetCell,
       });
 
+      // Insert audit log entry
+      await supabase
+        .from('balance_audit_log')
+        .insert({
+          user_address: userAddress,
+          operation_type: 'bet_placed',
+          amount: betAmount,
+          balance_before: currentBalance,
+          balance_after: newBalance,
+          bet_id: betId
+        });
+
       // Return success with remaining balance and bet ID
       return NextResponse.json({
         success: true,
-        remainingBalance: parseFloat(result.new_balance.toString()),
+        remainingBalance: parseFloat(newBalance.toString()),
         betId,
       });
+
     } catch (error) {
       // Handle unexpected errors
       console.error('Error generating bet ID:', error);

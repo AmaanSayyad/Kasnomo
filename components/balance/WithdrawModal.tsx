@@ -23,6 +23,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
   const [amount, setAmount] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successTx, setSuccessTx] = useState<string | null>(null);
 
   const { address, withdrawFunds, houseBalance, network, refreshWalletBalance } = useOverflowStore();
   const toast = useToast();
@@ -36,6 +37,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
       setAmount('');
       setError(null);
       setIsLoading(false);
+      setSuccessTx(null);
     }
   }, [isOpen]);
 
@@ -101,13 +103,13 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
       refreshWalletBalance();
 
       console.log('Withdrawal successful:', result.txHash);
+      setSuccessTx(result.txHash);
 
       toast.success(
-        `Successfully withdrew ${withdrawAmount.toLocaleString()} ${currencySymbol}! Balance updated.`
+        `Successfully withdrew ${withdrawAmount.toLocaleString()} ${currencySymbol}!`
       );
 
       if (onSuccess) onSuccess(withdrawAmount, result.txHash);
-      onClose();
     } catch (err: any) {
       console.error('Withdrawal error:', err);
       const errorMessage = err.message || 'Failed to withdraw funds';
@@ -118,6 +120,70 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
       setIsLoading(false);
     }
   };
+
+  if (successTx) {
+    return (
+      <Modal
+        isOpen={isOpen}
+        onClose={onClose}
+        title="Withdrawal Successful"
+      >
+        <div className="text-center py-4 space-y-6">
+          <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-2 border border-emerald-500/50 relative">
+            <div className="absolute inset-0 rounded-full bg-emerald-500/20 animate-ping" />
+            <svg className="w-10 h-10 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+
+          <div>
+            <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-1">Withdrawal Initiated</h3>
+            <p className="text-gray-400 text-xs font-mono uppercase tracking-widest">Funds are being transferred</p>
+          </div>
+
+          <div className="flex flex-col items-center gap-4 py-2">
+            <div className="flex flex-col items-center gap-1.5 font-mono">
+              <span className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Transaction Hash</span>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-[#FF006E] font-medium">{successTx.slice(0, 10)}...{successTx.slice(-10)}</span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(successTx);
+                      toast.info('Copied');
+                    }}
+                    className="p-1.5 hover:bg-white/5 rounded-lg text-gray-400 hover:text-white transition-all"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                    </svg>
+                  </button>
+                  <a
+                    href={`https://explorer-tn10.kaspa.org/txs/${successTx}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-1.5 hover:bg-white/5 rounded-lg text-gray-400 hover:text-white transition-all"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <Button
+            onClick={onClose}
+            variant="primary"
+            className="w-full bg-white text-black hover:bg-gray-200 border-none h-12 text-sm font-black uppercase tracking-widest"
+          >
+            Done
+          </Button>
+        </div>
+      </Modal>
+    );
+  }
 
   return (
     <Modal

@@ -87,7 +87,7 @@ export const createWalletSlice: StateCreator<WalletState> = (set, get) => ({
       if (typeof window !== 'undefined' && (window as any).kasware) {
         const balanceObj = await (window as any).kasware.getBalance();
 
-        // console.log("KasWare Balance Obj:", balanceObj); 
+        console.log("KasWare Raw Balance Object:", balanceObj);
 
         if (balanceObj) {
           let total = 0;
@@ -95,20 +95,42 @@ export const createWalletSlice: StateCreator<WalletState> = (set, get) => ({
           const parseVal = (val: any) => {
             if (typeof val === 'number') return val;
             if (typeof val === 'string') return parseFloat(val);
+            if (typeof val === 'bigint') return Number(val);
             return 0;
           };
 
           if (balanceObj.total !== undefined) {
             total = parseVal(balanceObj.total);
-          } else if (typeof balanceObj === 'number' || typeof balanceObj === 'string') {
+          } else if (typeof balanceObj === 'number' || typeof balanceObj === 'string' || typeof balanceObj === 'bigint') {
             total = parseVal(balanceObj);
           } else if (balanceObj.balance !== undefined) {
             total = parseVal(balanceObj.balance);
           } else if (balanceObj.confirmed !== undefined) {
             total = parseVal(balanceObj.confirmed) + parseVal(balanceObj.unconfirmed);
+          } else if (balanceObj.amount !== undefined) {
+            total = parseVal(balanceObj.amount);
+          } else {
+            // Fallback for properties that might contain 'amount' or 'kaspa'
+            for (const key in balanceObj) {
+              if (Object.prototype.hasOwnProperty.call(balanceObj, key)) {
+                const lowerKey = key.toLowerCase();
+                if (lowerKey.includes('amount') || lowerKey.includes('kaspa')) {
+                  const value = parseVal(balanceObj[key]);
+                  if (value > 0) {
+                    total = value;
+                    break;
+                  }
+                }
+              }
+            }
           }
 
           const totalKAS = total / 100000000; // SOMPI to KAS
+
+          if (total > 0) {
+            console.log(`[Wallet] Balance detected: ${totalKAS} KAS`);
+          }
+
           set({ walletBalance: totalKAS });
         }
       }

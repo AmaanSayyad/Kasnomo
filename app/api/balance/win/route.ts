@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
                 amount: winAmount,
                 balance_before: currentBalance,
                 balance_after: newBalance,
-                metadata: { betId }
+                bet_id: betId
             });
 
         if (auditError) {

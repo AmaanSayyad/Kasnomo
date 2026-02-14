@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabase/client';
 import { ethers } from 'ethers';
-import { transferBNBFromTreasury } from '@/lib/bnb/backend-client';
+import { sendKaspaTransaction } from '@/lib/kaspa/transaction';
 
 interface WithdrawRequest {
   userAddress: string;
@@ -21,31 +21,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate address (support BNB, Solana, Sui, Stellar, and Kaspa)
-    let isKAS = userAddress.startsWith('kaspa:') || userAddress.startsWith('kaspatest:');
-    let isBNB = ethers.isAddress(userAddress);
-    let isSOL = false;
-    let isSUI = false;
-    let isXLM = false;
+    // Validate address (strictly Kaspa and EVM)
+    const isKAS = userAddress.startsWith('kaspa:') || userAddress.startsWith('kaspatest:');
+    const isEVM = ethers.isAddress(userAddress);
 
-    if (!isKAS && !isBNB) {
-      if (/^0x[0-9a-fA-F]{64}$/.test(userAddress)) {
-        isSUI = true;
-      } else if (/^G[A-Z2-7]{55}$/.test(userAddress)) {
-        isXLM = true;
-      } else {
-        try {
-          const { PublicKey } = await import('@solana/web3.js');
-          const pk = new PublicKey(userAddress);
-          isSOL = pk.toBuffer().length === 32;
-        } catch (e) {
-          // If all checks fail checking for Kaspa again just in case but it's covered
-          return NextResponse.json(
-            { error: 'Invalid wallet address format (Kaspa, BNB, Solana, Sui or Stellar required)' },
-            { status: 400 }
-          );
-        }
-      }
+    if (!isKAS && !isEVM) {
+      return NextResponse.json(
+        { error: 'Invalid wallet address format (Kaspa or EVM required)' },
+        { status: 400 }
+      );
     }
 
     if (amount <= 0) {
@@ -56,8 +40,6 @@ export async function POST(request: NextRequest) {
     }
 
     // 1. Get house balance from Supabase and validate
-    // Mocking user balance check for now to enable testing
-    /*
     const { data: userData, error: userError } = await supabase
       .from('user_balances')
       .select('balance')
@@ -65,82 +47,94 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (userError || !userData) {
+      console.error('User not found in withdrawal:', userError);
       return NextResponse.json({ error: 'User balance record not found' }, { status: 404 });
     }
 
-    if (userData.balance < amount) {
+    const currentBalance = parseFloat(userData.balance);
+    if (currentBalance < amount) {
       return NextResponse.json({ error: 'Insufficient house balance' }, { status: 400 });
     }
-    */
 
     // 2. Apply 2% Treasury Fee
-    // The user's house balance is deducted by the full 'amount', 
-    // but they only receive 98% in their wallet.
     const feePercent = 0.02;
     const feeAmount = amount * feePercent;
     const netWithdrawAmount = amount - feeAmount;
 
-    console.log(`Withdrawal Request: Total=${amount}, Fee=${feeAmount}, Net=${netWithdrawAmount}`);
+    console.log(`[Withdraw] Request: Total=${amount} KAS, Fee=${feeAmount} KAS, Net=${netWithdrawAmount} KAS`);
 
-    // 3. Perform transfer from treasury based on network
-    let signature: string = '';
-    try {
-      if (isKAS) {
-        // Mock Kaspa transfer
-        console.log(`[MOCK] Sending ${netWithdrawAmount} KAS to ${userAddress} from Treasury`);
-        // In a real implementation, we would use the private key from env to sign a tx here
-        signature = 'mock-kaspa-tx-hash-' + Date.now();
-      } else if (isBNB) {
-        signature = await transferBNBFromTreasury(userAddress, netWithdrawAmount);
-      } else if (isSOL) {
-        const { transferSOLFromTreasury } = await import('@/lib/solana/backend-client');
-        signature = await transferSOLFromTreasury(userAddress, netWithdrawAmount);
-      } else if (isSUI) {
-        const { transferUSDCFromTreasury } = await import('@/lib/sui/backend-client');
-        signature = await transferUSDCFromTreasury(userAddress, netWithdrawAmount);
-      } else if (isXLM) {
-        const { transferXLMFromTreasury } = await import('@/lib/stellar/backend-client');
-        signature = await transferXLMFromTreasury(userAddress, netWithdrawAmount);
-      } else {
-        throw new Error('Unsupported network for withdrawal');
+    // 3. Send the actual on-chain transaction
+    let txHash: string;
+
+    if (isKAS) {
+      console.log(`[Withdraw] Sending ${netWithdrawAmount} KAS to ${userAddress} via REST API...`);
+
+      const txResult = await sendKaspaTransaction(userAddress, netWithdrawAmount);
+
+      if (!txResult.success || !txResult.txHash) {
+        console.error('[Withdraw] ❌ On-chain transaction failed:', txResult.error);
+        return NextResponse.json(
+          { error: `Withdrawal transaction failed: ${txResult.error || 'Unknown error'}` },
+          { status: 500 }
+        );
       }
-    } catch (e: any) {
-      console.error('Transfer failed:', e);
-      return NextResponse.json({ error: `Withdrawal failed: ${e.message}` }, { status: 500 });
-    }
 
-    // 3. Update Supabase balance using RPC
-    const { data, error } = await supabase.rpc('update_balance_for_withdrawal', {
-      p_user_address: userAddress,
-      p_withdrawal_amount: amount,
-      p_transaction_hash: signature,
-    });
+      txHash = txResult.txHash;
+      console.log(`[Withdraw] ✅ On-chain transaction successful: ${txHash}`);
 
-    if (error) {
-      console.error('Database error in withdrawal update:', error);
-      // Note: At this point the BNB has been sent!
+    } else {
       return NextResponse.json(
-        {
-          success: true,
-          txHash: signature,
-          warning: 'BNB sent but balance update failed. Please contact support.',
-          error: error.message
-        },
-        { status: 200 }
+        { error: 'EVM withdrawals not yet implemented' },
+        { status: 501 }
       );
     }
 
-    const result = data as { success: boolean; error: string | null; new_balance: number };
+    // 4. Update Supabase balance (only after successful on-chain tx)
+    const newBalance = currentBalance - amount;
+
+    const { error: updateError } = await supabase
+      .from('user_balances')
+      .update({
+        balance: newBalance,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_address', userAddress);
+
+    if (updateError) {
+      console.error('[Withdraw] Database error:', updateError);
+      // NOTE: The on-chain tx already succeeded. We should still return success
+      // but flag the DB error for manual reconciliation.
+      console.error('[Withdraw] ⚠️ CRITICAL: On-chain tx succeeded but DB update failed!');
+      console.error(`[Withdraw] TX: ${txHash}, User: ${userAddress}, Amount: ${amount}`);
+    }
+
+    // 5. Insert audit log entry
+    await supabase
+      .from('balance_audit_log')
+      .insert({
+        user_address: userAddress,
+        operation_type: 'withdrawal',
+        amount: amount,
+        balance_before: currentBalance,
+        balance_after: newBalance,
+        transaction_hash: txHash
+      });
+
+    console.log(`[Withdraw] ✅ Withdrawal complete: User balance updated to ${newBalance} KAS`);
 
     return NextResponse.json({
       success: true,
-      txHash: signature,
-      newBalance: result.new_balance,
+      txHash: txHash,
+      newBalance: newBalance,
+      netAmount: netWithdrawAmount,
+      fee: feeAmount,
+      status: 'confirmed',
+      message: 'Withdrawal completed successfully.'
     });
-  } catch (error) {
-    console.error('Unexpected error in POST /api/balance/withdraw:', error);
+  } catch (error: any) {
+    console.error('[Withdraw] ❌ Unexpected error:', error);
     return NextResponse.json(
-      { error: 'An error occurred processing your request' },
+      { error: error.message || 'An error occurred processing your request' },
       { status: 500 }
     );
   }

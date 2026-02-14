@@ -385,6 +385,11 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
 
       const data = await response.json();
 
+      // Update house balance in store immediately
+      if (data.remainingBalance !== undefined) {
+        set({ houseBalance: data.remainingBalance });
+      }
+
       // Create ActiveBet object
       const activeBet: ActiveBet = {
         id: data.betId,
@@ -539,9 +544,9 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
       ) {
         let won = false;
         if (bet.direction === 'UP') {
-          won = price > bet.strikePrice;
+          won = finalPrice > bet.strikePrice;
         } else {
-          won = price < bet.strikePrice;
+          won = finalPrice < bet.strikePrice;
         }
 
         const payout = won ? bet.amount * bet.multiplier : 0;
@@ -565,7 +570,7 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
 
         // Update real balance if necessary
         const isDemoMode = accountType === 'demo' || address?.startsWith('0xDEMO');
-        
+
         if (!isDemoMode && address && won) {
           // Real mode - credit winnings via API
           fetch('/api/balance/win', {
@@ -577,9 +582,11 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
               betId: bet.id
             })
           }).then(async (response) => {
-            if (response.ok && fetchBalance) {
-              // Fetch updated balance from server
-              await fetchBalance(address);
+            if (response.ok) {
+              const data = await response.json();
+              if (data.success && data.newBalance !== undefined) {
+                set({ houseBalance: data.newBalance });
+              }
             } else {
               console.error('Failed to credit winnings');
             }

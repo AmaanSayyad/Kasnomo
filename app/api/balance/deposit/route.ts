@@ -1,88 +1,141 @@
 /**
  * POST /api/balance/deposit endpoint
  * 
- * Task: 7.2 Update deposit endpoint for Sui
- * Requirements: 2.4
- * 
- * Called by blockchain event listener after deposit transaction.
- * Updates Supabase balance by adding deposit amount.
- * Inserts audit log entry with operation_type='deposit'.
+ * Verifies a real Kaspa blockchain transaction and credits user balance
+ * User must first send KAS to treasury address, then call this endpoint with txHash
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabase/client';
 import { ethers } from 'ethers';
+import { getTransaction } from '@/lib/kaspa/rpc';
 
 interface DepositRequest {
   userAddress: string;
-  amount: number;
   txHash: string;
 }
 
 export async function POST(request: NextRequest) {
   try {
-    // Parse request body
     const body: DepositRequest = await request.json();
-    const { userAddress, amount, txHash } = body;
+    const { userAddress, txHash } = body;
 
-    // Validate required fields
-    if (!userAddress || amount === undefined || amount === null || !txHash) {
+    if (!userAddress || !txHash) {
       return NextResponse.json(
-        { error: 'Missing required fields: userAddress, amount, txHash' },
+        { error: 'Missing required fields: userAddress, txHash' },
         { status: 400 }
       );
     }
 
-    // Validate address (support BNB, Solana, and Sui)
-    let isValid = false;
+    // Validate address format
+    const isKaspaAddress = userAddress.startsWith('kaspa:') || userAddress.startsWith('kaspatest:');
+    const isEVMAddress = ethers.isAddress(userAddress);
 
-    // Check if it's a valid Kaspa address
-    if (userAddress.startsWith('kaspa:') || userAddress.startsWith('kaspatest:')) {
-      isValid = true;
-    }
-    // Check if it's a valid EVM address
-    else if (ethers.isAddress(userAddress)) {
-      isValid = true;
-    }
-    // Check if it's a valid Sui address (Legacy - Optional)
-    else if (/^0x[0-9a-fA-F]{64}$/.test(userAddress)) {
-      isValid = true;
-    }
-
-    // Removed Solana/Stellar checks as project is Kaspa focused
-
-    if (!isValid) {
+    if (!isKaspaAddress && !isEVMAddress) {
       return NextResponse.json(
-        { error: 'Invalid wallet address format (Kaspa, EVM, Solana, Sui or Stellar required)' },
+        { error: 'Invalid wallet address format (Kaspa or EVM required)' },
         { status: 400 }
       );
     }
 
-    // Validate amount is positive
-    if (amount <= 0) {
+    console.log(`[Deposit] Verifying transaction ${txHash} for ${userAddress}`);
+
+    // Check if transaction was already processed
+    const { data: existingLog } = await supabase
+      .from('balance_audit_log')
+      .select('id')
+      .eq('transaction_hash', txHash)
+      .eq('operation_type', 'deposit')
+      .single();
+
+    if (existingLog) {
+      console.log(`[Deposit] ⚠️ Transaction already processed: ${txHash}`);
       return NextResponse.json(
-        { error: 'Deposit amount must be greater than zero' },
+        { error: 'Transaction already processed' },
         { status: 400 }
       );
     }
 
-    // Direct DB update (Bypassing RPC for reliability during dev)
+    // Verify transaction on blockchain (only for Kaspa addresses)
+    let amount = 0;
+
+    if (isKaspaAddress) {
+      console.log(`[Deposit] Verifying Kaspa blockchain transaction...`);
+
+      const treasuryAddress = process.env.NEXT_PUBLIC_KASPA_TREASURY_ADDRESS;
+      if (!treasuryAddress) {
+        throw new Error('Treasury address not configured');
+      }
+
+      // Get transaction from blockchain (retry with delay — tx may not be indexed yet)
+      let txInfo = await getTransaction(txHash);
+
+      if (!txInfo) {
+        console.log(`[Deposit] Transaction not found yet, retrying with delays...`);
+        for (let attempt = 1; attempt <= 5; attempt++) {
+          await new Promise(resolve => setTimeout(resolve, 3000)); // wait 3 seconds
+          console.log(`[Deposit] Retry attempt ${attempt}/5 for tx ${txHash}`);
+          txInfo = await getTransaction(txHash);
+          if (txInfo) break;
+        }
+      }
+
+      if (!txInfo) {
+        return NextResponse.json(
+          { error: 'Transaction not found on blockchain. It may still be processing — please try again in a few seconds.' },
+          { status: 404 }
+        );
+      }
+
+      // Find output to treasury address
+      let depositAmountSompi = 0n;
+
+      if (txInfo.outputs) {
+        for (const output of txInfo.outputs) {
+          // REST API uses snake_case field: script_public_key_address
+          const outputAddress = output.script_public_key_address;
+          if (outputAddress === treasuryAddress) {
+            depositAmountSompi += BigInt(output.amount);
+          }
+        }
+      }
+
+      if (depositAmountSompi === 0n) {
+        return NextResponse.json(
+          { error: 'No deposit found to treasury address in this transaction' },
+          { status: 400 }
+        );
+      }
+
+      // Convert sompi to KAS (1 KAS = 100,000,000 sompi)
+      amount = Number(depositAmountSompi) / 100_000_000;
+      console.log(`[Deposit] ✅ Verified deposit: ${amount} KAS`);
+
+    } else {
+      return NextResponse.json(
+        { error: 'EVM deposit verification not yet implemented' },
+        { status: 501 }
+      );
+    }
+
+    // Update user balance
     let newBalance = amount;
 
-    // 1. Check existing balance
     const { data: existingData, error: fetchError } = await supabase
       .from('user_balances')
       .select('balance')
       .eq('user_address', userAddress)
       .single();
 
-    if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 = JSON object not found (no row)
-      console.error('Error fetching existing balance:', fetchError);
-      return NextResponse.json({ error: 'Database error fetching balance: ' + fetchError.message }, { status: 500 });
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      console.error('[Deposit] Error fetching balance:', fetchError);
+      return NextResponse.json(
+        { error: 'Database error: ' + fetchError.message },
+        { status: 500 }
+      );
     }
 
     if (existingData) {
-      // Update existing
       newBalance = parseFloat(existingData.balance) + amount;
       const { error: updateError } = await supabase
         .from('user_balances')
@@ -93,11 +146,13 @@ export async function POST(request: NextRequest) {
         .eq('user_address', userAddress);
 
       if (updateError) {
-        console.error('Error updating balance:', updateError);
-        return NextResponse.json({ error: 'Database error updating balance: ' + updateError.message }, { status: 500 });
+        console.error('[Deposit] Error updating balance:', updateError);
+        return NextResponse.json(
+          { error: 'Database error: ' + updateError.message },
+          { status: 500 }
+        );
       }
     } else {
-      // Insert new
       const { error: insertError } = await supabase
         .from('user_balances')
         .insert({
@@ -108,24 +163,38 @@ export async function POST(request: NextRequest) {
         });
 
       if (insertError) {
-        console.error('Error inserting balance:', insertError);
-        return NextResponse.json({ error: 'Database error creating balance: ' + insertError.message }, { status: 500 });
+        console.error('[Deposit] Error inserting balance:', insertError);
+        return NextResponse.json(
+          { error: 'Database error: ' + insertError.message },
+          { status: 500 }
+        );
       }
     }
 
-    console.log(`[DB] Deposit successful for ${userAddress}: +${amount} -> ${newBalance}`);
+    console.log(`[Deposit] ✅ Balance updated: ${existingData ? parseFloat(existingData.balance) : 0} -> ${newBalance} KAS`);
+
+    await supabase
+      .from('balance_audit_log')
+      .insert({
+        user_address: userAddress,
+        operation_type: 'deposit',
+        amount: amount,
+        balance_before: existingData ? parseFloat(existingData.balance) : 0,
+        balance_after: newBalance,
+        transaction_hash: txHash
+      });
 
     return NextResponse.json({
       success: true,
       newBalance: newBalance,
+      amount: amount,
+      txHash: txHash
     });
 
-
-  } catch (error) {
-    // Handle unexpected errors
-    console.error('Unexpected error in POST /api/balance/deposit:', error);
+  } catch (error: any) {
+    console.error('[Deposit] ❌ Unexpected error:', error);
     return NextResponse.json(
-      { error: 'An error occurred processing your request' },
+      { error: error.message || 'An error occurred processing your request' },
       { status: 500 }
     );
   }
