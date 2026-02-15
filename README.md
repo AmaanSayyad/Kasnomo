@@ -257,20 +257,22 @@ npm install
 
 ### 2. Environment
 
-Create `.env` (see `.env.example`). Required:
+Create `.env` from `.env.example`. Required:
 
 ```bash
+# Supabase (from Supabase dashboard → Settings → API)
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
 # Kaspa
 NEXT_PUBLIC_KASPA_NETWORK=testnet-10
-NEXT_PUBLIC_KASPA_RPC_ENDPOINT=https://api.kaspa.org/testnet10
-NEXT_PUBLIC_KASPA_TREASURY_ADDRESS=kaspatest:...
-KASPA_TREASURY_PRIVATE_KEY=...
-
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=...
-NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-SUPABASE_SERVICE_ROLE_KEY=...
+NEXT_PUBLIC_KASPA_RPC_ENDPOINT=wss://api.kaspa.org/testnet10/wrpc
+NEXT_PUBLIC_KASPA_TREASURY_ADDRESS=kaspatest:qz...
+KASPA_TREASURY_PRIVATE_KEY=your-treasury-private-key
 ```
+
+Optional: `EVM_WALLET_ADDRESS`, `EVM_PRIVATE_KEY` for backup wallet; BNB vars if you need BNB withdrawals.
 
 ### 3. Database
 
