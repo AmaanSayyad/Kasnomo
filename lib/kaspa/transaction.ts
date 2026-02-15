@@ -13,6 +13,10 @@
  *  - BIP-143-style sighash structure
  */
 
+import { sha256 } from '@noble/hashes/sha2.js';
+import { hmac } from '@noble/hashes/hmac.js';
+import * as secp from '@noble/secp256k1';
+import * as blakejs from 'blakejs';
 import {
   getUtxosByAddress,
   submitTransaction,
@@ -22,22 +26,12 @@ import {
 } from './rpc';
 
 // ── Crypto helpers ────────────────────────────────────────────────────
-
-let _secp: any = null;
+// @noble/secp256k1 v3 needs sync hashes set for schnorr.sign() and sign()
+(secp.hashes as any).sha256 = (msg: Uint8Array) => sha256(msg);
+(secp.hashes as any).hmacSha256 = (key: Uint8Array, msg: Uint8Array) => hmac(sha256, key, msg);
 
 async function getSecp() {
-  if (!_secp) {
-    const secp = await import('@noble/secp256k1');
-    const { sha256 } = await import('@noble/hashes/sha256');
-    const { hmac } = await import('@noble/hashes/hmac');
-    // @noble/secp256k1 v3 exports `hashes` object — set sync hash functions
-    // schnorr.sign() uses taggedHash -> callHash('sha256')
-    // sign() uses hmacDrbg -> callHash('hmacSha256')
-    (secp.hashes as any).sha256 = (msg: Uint8Array) => sha256(msg);
-    (secp.hashes as any).hmacSha256 = (key: Uint8Array, msg: Uint8Array) => hmac(sha256, key, msg);
-    _secp = secp;
-  }
-  return _secp;
+  return secp;
 }
 
 /**
@@ -47,10 +41,7 @@ async function getSecp() {
  * blakejs signature: blake2b(input, key, outlen)
  */
 function blake2bKeyed(data: Uint8Array, domainKey: string): Uint8Array {
-  // blakejs is CommonJS, import synchronously
-  const blakejs = require('blakejs');
   const keyBytes = new TextEncoder().encode(domainKey);
-  // Wrap result to normalize Uint8Array type (blakejs returns ArrayBufferLike)
   return new Uint8Array(blakejs.blake2b(data, keyBytes, 32));
 }
 
@@ -281,9 +272,9 @@ interface TxOutputForSig {
  * For each input: write txId(32 bytes) + index(u32_le)
  */
 function hashPreviousOutputs(inputs: TxInputForSig[]): Uint8Array {
-  let data = new Uint8Array(0);
+  let data: Uint8Array = new Uint8Array(0);
   for (const input of inputs) {
-    data = concat(data, input.txId, writeU32LE(input.index));
+    data = concat(data, input.txId, writeU32LE(input.index)) as Uint8Array;
   }
   return blake2bKeyed(data, DOMAIN_TX_SIGNING);
 }
@@ -293,9 +284,9 @@ function hashPreviousOutputs(inputs: TxInputForSig[]): Uint8Array {
  * For each input: write sequence(u64_le)
  */
 function hashSequences(inputs: TxInputForSig[]): Uint8Array {
-  let data = new Uint8Array(0);
+  let data: Uint8Array = new Uint8Array(0);
   for (const input of inputs) {
-    data = concat(data, writeU64LE(input.sequence));
+    data = concat(data, writeU64LE(input.sequence)) as Uint8Array;
   }
   return blake2bKeyed(data, DOMAIN_TX_SIGNING);
 }
@@ -305,9 +296,9 @@ function hashSequences(inputs: TxInputForSig[]): Uint8Array {
  * For each input: write sig_op_count(u8)
  */
 function hashSigOpCounts(inputs: TxInputForSig[]): Uint8Array {
-  let data = new Uint8Array(0);
+  let data: Uint8Array = new Uint8Array(0);
   for (const input of inputs) {
-    data = concat(data, writeU8(input.sigOpCount));
+    data = concat(data, writeU8(input.sigOpCount)) as Uint8Array;
   }
   return blake2bKeyed(data, DOMAIN_TX_SIGNING);
 }
@@ -317,9 +308,9 @@ function hashSigOpCounts(inputs: TxInputForSig[]): Uint8Array {
  * For each output: write amount(u64_le) + script_public_key(version:u16_le + var_bytes(script))
  */
 function hashOutputs(outputs: TxOutputForSig[]): Uint8Array {
-  let data = new Uint8Array(0);
+  let data: Uint8Array = new Uint8Array(0);
   for (const output of outputs) {
-    data = concat(data, writeU64LE(output.amount), encodeScriptPublicKey(output.scriptVersion, output.script));
+    data = concat(data, writeU64LE(output.amount), encodeScriptPublicKey(output.scriptVersion, output.script)) as Uint8Array;
   }
   return blake2bKeyed(data, DOMAIN_TX_SIGNING);
 }
